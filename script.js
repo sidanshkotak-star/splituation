@@ -132,10 +132,6 @@ function saveData() {
   localStorage.setItem(storageKey, JSON.stringify(data));
 }
 
-function createId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
 }
@@ -221,6 +217,178 @@ async function ensureRemoteProfile(user, displayName = "") {
     },
     { onConflict: "id" },
   );
+}
+
+function mapRemoteProfile(profile) {
+  return {
+    id: profile.id,
+    email: profile.email || "",
+    displayName: profile.display_name || profile.email?.split("@")[0] || "Your profile",
+    createdAt: profile.created_at || new Date().toISOString(),
+  };
+}
+
+function mapRemoteGroup(group) {
+  return {
+    id: group.id,
+    name: group.name,
+    createdBy: group.created_by,
+    createdAt: group.created_at,
+    updatedAt: group.updated_at,
+  };
+}
+
+function mapRemoteMember(member) {
+  return {
+    id: member.id,
+    groupId: member.group_id,
+    userId: member.user_id,
+    role: member.role,
+    createdAt: member.created_at,
+  };
+}
+
+function mapRemoteExpense(expense) {
+  return {
+    id: expense.id,
+    groupId: expense.group_id,
+    createdBy: expense.created_by,
+    paidBy: expense.paid_by,
+    title: expense.title,
+    amount: Number(expense.amount),
+    category: expense.category,
+    expenseDate: expense.expense_date,
+    notes: expense.notes || "",
+    createdAt: expense.created_at,
+    updatedAt: expense.updated_at,
+  };
+}
+
+function replaceLocalProfiles(profiles) {
+  const profileMap = new Map(data.users.map((user) => [user.id, user]));
+
+  profiles.forEach((profile) => {
+    profileMap.set(profile.id, profile);
+  });
+
+  data.users = Array.from(profileMap.values());
+}
+
+function getRemoteProfileIds() {
+  return Array.from(
+    new Set([
+      data.currentUserId,
+      ...data.groupMembers.map((member) => member.userId),
+      ...data.expenses.map((expense) => expense.createdBy),
+      ...data.expenses.map((expense) => expense.paidBy),
+    ].filter(Boolean)),
+  );
+}
+
+function getMigrationKey(userId) {
+  return `splituation-remote-migrated-${userId}`;
+}
+
+async function migrateLocalDataToSupabase() {
+  if (!supabaseClient || !data.currentUserId || localStorage.getItem(getMigrationKey(data.currentUserId))) {
+    return;
+  }
+
+  const localGroups = getMyGroups().filter((group) => !group.id.match(/^[0-9a-f-]{36}$/i));
+  const groupIdMap = new Map();
+
+  for (const localGroup of localGroups) {
+    const { data: remoteGroup, error: groupError } = await supabaseClient
+      .from("groups")
+      .insert({
+        name: localGroup.name,
+        created_by: data.currentUserId,
+      })
+      .select()
+      .single();
+
+    if (groupError) {
+      throw groupError;
+    }
+
+    const { error: memberError } = await supabaseClient.from("group_members").insert({
+      group_id: remoteGroup.id,
+      user_id: data.currentUserId,
+      role: "owner",
+    });
+
+    if (memberError) {
+      throw memberError;
+    }
+
+    groupIdMap.set(localGroup.id, remoteGroup.id);
+  }
+
+  const localExpenses = data.expenses.filter((expense) => groupIdMap.has(expense.groupId));
+
+  for (const localExpense of localExpenses) {
+    const { error } = await supabaseClient.from("expenses").insert({
+      group_id: groupIdMap.get(localExpense.groupId),
+      created_by: data.currentUserId,
+      paid_by: data.currentUserId,
+      title: localExpense.title,
+      amount: localExpense.amount,
+      category: localExpense.category,
+      expense_date: localExpense.expenseDate,
+      notes: localExpense.notes || null,
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  localStorage.setItem(getMigrationKey(data.currentUserId), "true");
+}
+
+async function loadRemoteAppData() {
+  if (!supabaseClient || !data.currentUserId) {
+    return;
+  }
+
+  const [groupsResult, membersResult, expensesResult] = await Promise.all([
+    supabaseClient.from("groups").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("group_members").select("*").order("created_at", { ascending: true }),
+    supabaseClient.from("expenses").select("*").order("expense_date", { ascending: false }),
+  ]);
+
+  if (groupsResult.error) {
+    throw groupsResult.error;
+  }
+
+  if (membersResult.error) {
+    throw membersResult.error;
+  }
+
+  if (expensesResult.error) {
+    throw expensesResult.error;
+  }
+
+  data.groups = groupsResult.data.map(mapRemoteGroup);
+  data.groupMembers = membersResult.data.map(mapRemoteMember);
+  data.expenses = expensesResult.data.map(mapRemoteExpense);
+
+  const profileIds = getRemoteProfileIds();
+
+  if (profileIds.length > 0) {
+    const profilesResult = await supabaseClient
+      .from("profiles")
+      .select("id, email, display_name, created_at")
+      .in("id", profileIds);
+
+    if (profilesResult.error) {
+      throw profilesResult.error;
+    }
+
+    replaceLocalProfiles(profilesResult.data.map(mapRemoteProfile));
+  }
+
+  saveData();
 }
 
 function getUserName(userId) {
@@ -782,7 +950,13 @@ function createExpenseListItem(expense) {
   deleteButton.textContent = "Delete";
 
   editButton.addEventListener("click", () => startEditExpense(expense.id));
-  deleteButton.addEventListener("click", () => deleteExpense(expense.id));
+  deleteButton.addEventListener("click", async () => {
+    try {
+      await deleteExpense(expense.id);
+    } catch {
+      expenseMessage.textContent = "Could not delete the expense. Please try again.";
+    }
+  });
 
   details.append(title, meta);
   main.append(details, amount);
@@ -823,7 +997,7 @@ function startEditExpense(expenseId) {
   expenseForm.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function handleExpenseSubmit() {
+async function handleExpenseSubmit() {
   const group = getMyGroup(selectedGroupId);
   const title = expenseTitleInput.value.trim();
   const amount = Number(expenseAmountInput.value);
@@ -850,34 +1024,48 @@ function handleExpenseSubmit() {
     return;
   }
 
-  if (selectedExpenseId) {
-    const expense = data.expenses.find(
-      (savedExpense) => savedExpense.id === selectedExpenseId && savedExpense.groupId === selectedGroupId,
-    );
+  expenseSubmitButton.disabled = true;
+  expenseSubmitButton.textContent = selectedExpenseId ? "Saving..." : "Adding...";
 
-    if (expense) {
-      expense.title = title;
-      expense.amount = amount;
-      expense.category = category;
-      expense.expenseDate = expenseDate;
-      expense.updatedAt = new Date().toISOString();
+  if (selectedExpenseId) {
+    const { error } = await supabaseClient
+      .from("expenses")
+      .update({
+        title,
+        amount,
+        category,
+        expense_date: expenseDate,
+        paid_by: data.currentUserId,
+      })
+      .eq("id", selectedExpenseId)
+      .eq("group_id", selectedGroupId);
+
+    if (error) {
+      expenseSubmitButton.disabled = false;
+      expenseSubmitButton.textContent = "Save expense";
+      expenseMessage.textContent = error.message;
+      return;
     }
   } else {
-    data.expenses.push({
-      id: createId("expense"),
-      groupId: group.id,
-      createdBy: data.currentUserId,
-      paidBy: data.currentUserId,
+    const { error } = await supabaseClient.from("expenses").insert({
+      group_id: group.id,
+      created_by: data.currentUserId,
+      paid_by: data.currentUserId,
       title,
       amount,
       category,
-      expenseDate,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      expense_date: expenseDate,
     });
+
+    if (error) {
+      expenseSubmitButton.disabled = false;
+      expenseSubmitButton.textContent = "Add expense";
+      expenseMessage.textContent = error.message;
+      return;
+    }
   }
 
-  saveData();
+  await loadRemoteAppData();
   resetExpenseForm();
   renderGroups();
   renderRecentExpenses();
@@ -885,7 +1073,7 @@ function handleExpenseSubmit() {
   renderGroupDetail();
 }
 
-function deleteExpense(expenseId) {
+async function deleteExpense(expenseId) {
   const expense = data.expenses.find(
     (savedExpense) => savedExpense.id === expenseId && savedExpense.groupId === selectedGroupId,
   );
@@ -900,20 +1088,25 @@ function deleteExpense(expenseId) {
     return;
   }
 
-  data.expenses = data.expenses.filter((savedExpense) => savedExpense.id !== expense.id);
+  const { error } = await supabaseClient.from("expenses").delete().eq("id", expense.id).eq("group_id", selectedGroupId);
+
+  if (error) {
+    expenseMessage.textContent = error.message;
+    return;
+  }
 
   if (selectedExpenseId === expense.id) {
     resetExpenseForm();
   }
 
-  saveData();
+  await loadRemoteAppData();
   renderGroups();
   renderRecentExpenses();
   renderReports();
   renderGroupDetail();
 }
 
-function deleteSelectedGroup() {
+async function deleteSelectedGroup() {
   const group = getMyGroup(selectedGroupId);
 
   if (!group) {
@@ -927,13 +1120,17 @@ function deleteSelectedGroup() {
     return;
   }
 
-  data.groups = data.groups.filter((savedGroup) => savedGroup.id !== group.id);
-  data.groupMembers = data.groupMembers.filter((member) => member.groupId !== group.id);
-  data.expenses = data.expenses.filter((expense) => expense.groupId !== group.id);
+  const { error } = await supabaseClient.from("groups").delete().eq("id", group.id);
+
+  if (error) {
+    window.alert(error.message);
+    return;
+  }
+
   selectedGroupId = null;
   selectedExpenseId = null;
 
-  saveData();
+  await loadRemoteAppData();
   renderGroups();
   renderRecentExpenses();
   renderReports();
@@ -991,6 +1188,8 @@ async function handleSignup() {
   }
 
   await ensureRemoteProfile(authData.user, displayName);
+  await migrateLocalDataToSupabase();
+  await loadRemoteAppData();
   authForm.reset();
   renderApp();
 }
@@ -1027,6 +1226,8 @@ async function handleLogin() {
   }
 
   await ensureRemoteProfile(authData.user);
+  await migrateLocalDataToSupabase();
+  await loadRemoteAppData();
   authForm.reset();
   renderApp();
 }
@@ -1059,11 +1260,17 @@ async function initializeApp() {
 
   const { data: sessionData } = await supabaseClient.auth.getSession();
 
-  if (sessionData.session?.user) {
-    await ensureRemoteProfile(sessionData.session.user);
-  } else {
-    data.currentUserId = null;
-    saveData();
+  try {
+    if (sessionData.session?.user) {
+      await ensureRemoteProfile(sessionData.session.user);
+      await migrateLocalDataToSupabase();
+      await loadRemoteAppData();
+    } else {
+      data.currentUserId = null;
+      saveData();
+    }
+  } catch (error) {
+    authMessage.textContent = error.message || "Could not load your Supabase data.";
   }
 
   renderApp();
@@ -1086,7 +1293,7 @@ authForm.addEventListener("submit", async (event) => {
   }
 });
 
-groupForm.addEventListener("submit", (event) => {
+groupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   groupMessage.textContent = "";
 
@@ -1097,41 +1304,72 @@ groupForm.addEventListener("submit", (event) => {
     return;
   }
 
-  const group = {
-    id: createId("group"),
-    name: groupName,
-    createdBy: data.currentUserId,
-    createdAt: new Date().toISOString(),
-  };
+  const submitButton = groupForm.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  submitButton.textContent = "Creating...";
 
-  data.groups.push(group);
-  data.groupMembers.push({
-    id: createId("member"),
-    groupId: group.id,
-    userId: data.currentUserId,
-    role: "owner",
-    createdAt: new Date().toISOString(),
-  });
+  try {
+    const { data: group, error: groupError } = await supabaseClient
+      .from("groups")
+      .insert({
+        name: groupName,
+        created_by: data.currentUserId,
+      })
+      .select()
+      .single();
 
-  saveData();
-  groupForm.reset();
-  renderGroups();
-  renderRecentExpenses();
-  renderReports();
-  openGroupDetail(group.id);
+    if (groupError) {
+      throw groupError;
+    }
+
+    const { error: memberError } = await supabaseClient.from("group_members").insert({
+      group_id: group.id,
+      user_id: data.currentUserId,
+      role: "owner",
+    });
+
+    if (memberError) {
+      throw memberError;
+    }
+
+    await loadRemoteAppData();
+    submitButton.disabled = false;
+    submitButton.textContent = "Create group";
+    groupForm.reset();
+    renderGroups();
+    renderRecentExpenses();
+    renderReports();
+    openGroupDetail(group.id);
+  } catch (error) {
+    submitButton.disabled = false;
+    submitButton.textContent = "Create group";
+    groupMessage.textContent = error.message || "Could not create the group. Please try again.";
+  }
 });
 
-expenseForm.addEventListener("submit", (event) => {
+expenseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   expenseMessage.textContent = "";
-  handleExpenseSubmit();
+  try {
+    await handleExpenseSubmit();
+  } catch {
+    expenseSubmitButton.disabled = false;
+    expenseSubmitButton.textContent = selectedExpenseId ? "Save expense" : "Add expense";
+    expenseMessage.textContent = "Could not save the expense. Please try again.";
+  }
 });
 
 loginModeButton.addEventListener("click", () => setAuthMode("login"));
 signupModeButton.addEventListener("click", () => setAuthMode("signup"));
 logoutButton.addEventListener("click", logout);
 detailLogoutButton.addEventListener("click", logout);
-deleteGroupButton.addEventListener("click", deleteSelectedGroup);
+deleteGroupButton.addEventListener("click", async () => {
+  try {
+    await deleteSelectedGroup();
+  } catch {
+    window.alert("Could not delete the group. Please try again.");
+  }
+});
 cancelEditExpenseButton.addEventListener("click", resetExpenseForm);
 scrollToExpenseButton.addEventListener("click", () => {
   expenseForm.scrollIntoView({ behavior: "smooth", block: "start" });
