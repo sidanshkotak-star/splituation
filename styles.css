@@ -225,6 +225,13 @@ button {
   font-size: 0.9rem;
 }
 
+.build-version {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
 .top-bar {
   display: flex;
   align-items: flex-start;
