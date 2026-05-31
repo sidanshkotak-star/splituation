@@ -21,6 +21,17 @@ const nameField = document.querySelector("#name-field");
 const displayNameInput = document.querySelector("#display-name");
 const emailInput = document.querySelector("#email");
 const passwordInput = document.querySelector("#password");
+const forgotPasswordButton = document.querySelector("#forgot-password-button");
+const resetForm = document.querySelector("#reset-form");
+const resetTitle = document.querySelector("#reset-title");
+const cancelResetButton = document.querySelector("#cancel-reset-button");
+const resetEmailField = document.querySelector("#reset-email-field");
+const resetEmailInput = document.querySelector("#reset-email");
+const newPasswordField = document.querySelector("#new-password-field");
+const newPasswordInput = document.querySelector("#new-password");
+const resetMessage = document.querySelector("#reset-message");
+const resetHelp = document.querySelector("#reset-help");
+const resetSubmitButton = document.querySelector("#reset-submit-button");
 
 const logoutButton = document.querySelector("#logout-button");
 const detailLogoutButton = document.querySelector("#detail-logout-button");
@@ -80,6 +91,7 @@ const emptyReportInsights = document.querySelector("#empty-report-insights");
 const emptyReportMonth = document.querySelector("#empty-report-month");
 
 let authMode = "login";
+let resetMode = "request";
 let selectedGroupId = null;
 let selectedExpenseId = null;
 let reportFilters = {
@@ -800,6 +812,35 @@ function showSessionMessage(message) {
   sessionMessage.classList.remove("hidden");
 }
 
+function showAuthForm() {
+  resetForm.classList.add("hidden");
+  authForm.classList.remove("hidden");
+  resetMessage.textContent = "";
+  resetMessage.classList.remove("success-message");
+  resetForm.reset();
+}
+
+function showResetForm(nextResetMode = "request", email = "") {
+  resetMode = nextResetMode;
+  authForm.classList.add("hidden");
+  resetForm.classList.remove("hidden");
+  resetMessage.textContent = "";
+  resetMessage.classList.remove("success-message");
+
+  const isUpdate = resetMode === "update";
+
+  resetTitle.textContent = isUpdate ? "Set New Password" : "Reset Password";
+  resetEmailField.classList.toggle("hidden", isUpdate);
+  resetEmailInput.required = !isUpdate;
+  resetEmailInput.value = email;
+  newPasswordField.classList.toggle("hidden", !isUpdate);
+  newPasswordInput.required = isUpdate;
+  resetHelp.textContent = isUpdate
+    ? "Enter a new password for your account."
+    : "Enter your email and we will send a password reset link.";
+  resetSubmitButton.textContent = isUpdate ? "Update password" : "Send reset link";
+}
+
 function getAuthReturnMessage() {
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
   const queryParams = new URLSearchParams(window.location.search);
@@ -812,6 +853,10 @@ function getAuthReturnMessage() {
 
   if (authType === "signup" || authType === "email") {
     return { kind: "success", message: "Email confirmed. You are signed in." };
+  }
+
+  if (authType === "recovery") {
+    return { kind: "recovery", message: "Choose a new password." };
   }
 
   return null;
@@ -832,6 +877,14 @@ async function handleAuthCallback() {
   }
 
   if (callbackData.session?.user) {
+    const queryParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const authType = queryParams.get("type") || hashParams.get("type");
+
+    if (authType === "recovery") {
+      return { kind: "recovery", message: "Choose a new password." };
+    }
+
     return { kind: "success", message: "Email confirmed. You are signed in." };
   }
 
@@ -1301,6 +1354,74 @@ async function handleLogin() {
   renderApp();
 }
 
+async function handleResetRequest() {
+  const email = normalizeEmail(resetEmailInput.value);
+
+  if (!supabaseClient) {
+    resetMessage.textContent = "Supabase could not load. Check your internet connection and refresh.";
+    return;
+  }
+
+  if (!email) {
+    resetMessage.textContent = "Enter your email address.";
+    return;
+  }
+
+  resetSubmitButton.disabled = true;
+  resetSubmitButton.textContent = "Sending...";
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: appRedirectUrl,
+  });
+
+  resetSubmitButton.disabled = false;
+  resetSubmitButton.textContent = "Send reset link";
+
+  if (error) {
+    resetMessage.classList.remove("success-message");
+    resetMessage.textContent = error.message;
+    return;
+  }
+
+  resetMessage.classList.add("success-message");
+  resetMessage.textContent = "Password reset email sent. Check your inbox, then return here after opening the link.";
+}
+
+async function handlePasswordUpdate() {
+  const newPassword = newPasswordInput.value;
+
+  if (!supabaseClient) {
+    resetMessage.textContent = "Supabase could not load. Check your internet connection and refresh.";
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    resetMessage.textContent = "Use at least 6 characters for the new password.";
+    return;
+  }
+
+  resetSubmitButton.disabled = true;
+  resetSubmitButton.textContent = "Updating...";
+
+  const { error } = await supabaseClient.auth.updateUser({
+    password: newPassword,
+  });
+
+  resetSubmitButton.disabled = false;
+  resetSubmitButton.textContent = "Update password";
+
+  if (error) {
+    resetMessage.classList.remove("success-message");
+    resetMessage.textContent = error.message;
+    return;
+  }
+
+  resetForm.reset();
+  showAuthForm();
+  authMessage.classList.add("success-message");
+  authMessage.textContent = "Password updated. You can keep using the app or log in again next time.";
+}
+
 async function logout() {
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
@@ -1352,6 +1473,10 @@ async function initializeApp() {
   if (finalAuthReturn?.kind === "success" && getCurrentUser()) {
     showSessionMessage(finalAuthReturn.message);
     window.history.replaceState({}, document.title, window.location.pathname);
+  } else if (finalAuthReturn?.kind === "recovery") {
+    showScreen("auth");
+    showResetForm("update");
+    window.history.replaceState({}, document.title, window.location.pathname);
   } else if (finalAuthReturn?.kind === "error") {
     authMessage.textContent = finalAuthReturn.message;
   }
@@ -1371,6 +1496,24 @@ authForm.addEventListener("submit", async (event) => {
     authSubmitButton.disabled = false;
     authSubmitButton.textContent = authMode === "signup" ? "Create account" : "Log in";
     authMessage.textContent = "Something went wrong. Please try again.";
+  }
+});
+
+resetForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  resetMessage.textContent = "";
+  resetMessage.classList.remove("success-message");
+
+  try {
+    if (resetMode === "update") {
+      await handlePasswordUpdate();
+    } else {
+      await handleResetRequest();
+    }
+  } catch {
+    resetSubmitButton.disabled = false;
+    resetSubmitButton.textContent = resetMode === "update" ? "Update password" : "Send reset link";
+    resetMessage.textContent = "Something went wrong. Please try again.";
   }
 });
 
@@ -1442,6 +1585,11 @@ expenseForm.addEventListener("submit", async (event) => {
 
 loginModeButton.addEventListener("click", () => setAuthMode("login"));
 signupModeButton.addEventListener("click", () => setAuthMode("signup"));
+forgotPasswordButton.addEventListener("click", () => showResetForm("request", emailInput.value));
+cancelResetButton.addEventListener("click", () => {
+  showAuthForm();
+  setAuthMode("login");
+});
 logoutButton.addEventListener("click", logout);
 detailLogoutButton.addEventListener("click", logout);
 deleteGroupButton.addEventListener("click", async () => {
