@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SpendWise</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="auth-screen" class="screen screen-active" aria-labelledby="auth-title">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">S</div>
+          <p class="eyebrow">SpendWise</p>
+          <h1 id="auth-title">Private spending groups for people you trust.</h1>
+        </div>
+
+        <div class="auth-panel">
+          <div class="mode-switch" aria-label="Authentication mode">
+            <button id="login-mode-button" class="mode-button mode-button-active" type="button">Log in</button>
+            <button id="signup-mode-button" class="mode-button" type="button">Sign up</button>
+          </div>
+
+          <form id="auth-form" class="stacked-form">
+            <div id="name-field" class="field hidden">
+              <label for="display-name">Name</label>
+              <input id="display-name" name="displayName" type="text" autocomplete="name" placeholder="Your name" />
+            </div>
+
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+            </div>
+
+            <div class="field">
+              <label for="password">Password</label>
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required />
+            </div>
+
+            <p id="auth-message" class="form-message" role="status"></p>
+            <p id="auth-help" class="auth-help">Use the email and password you created for SpendWise.</p>
+            <button id="auth-submit-button" type="submit">Log in</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="home-screen" class="screen" aria-labelledby="home-title">
+        <header class="top-bar">
+          <div>
+            <p class="eyebrow">SpendWise</p>
+            <h1 id="home-title">Home</h1>
+          </div>
+          <button id="logout-button" class="ghost-button" type="button">Log out</button>
+        </header>
+
+        <section class="summary-panel" aria-label="Account summary">
+          <p class="panel-label">Signed in as</p>
+          <p id="profile-name" class="profile-name">Your profile</p>
+          <p id="profile-email" class="muted">you@example.com</p>
+        </section>
+
+        <section class="content-section" aria-labelledby="home-groups-title">
+          <div class="section-heading">
+            <h2 id="home-groups-title">Your Groups</h2>
+            <span id="home-group-count">0 groups</span>
+          </div>
+
+          <div id="empty-home" class="empty-state">
+            <strong>Create a group to get started.</strong>
+            <p>Your groups will appear here after you create one.</p>
+            <button class="empty-action" data-screen="groups" type="button">Create group</button>
+          </div>
+
+          <ul id="home-group-list" class="item-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="recent-expenses-title">
+          <div class="section-heading">
+            <h2 id="recent-expenses-title">Recent Expenses</h2>
+            <span id="recent-expense-count">0 expenses</span>
+          </div>
+
+          <div id="empty-recent-expenses" class="empty-state">
+            <strong>No expenses yet</strong>
+            <p>Add an expense inside a group and it will appear here.</p>
+          </div>
+
+          <ul id="recent-expense-list" class="item-list"></ul>
+        </section>
+
+        <nav class="bottom-nav" aria-label="Main navigation">
+          <button class="nav-button nav-button-active" data-screen="home" type="button">Home</button>
+          <button class="nav-button" data-screen="groups" type="button">Groups</button>
+          <button class="nav-button" data-screen="reports" type="button">Reports</button>
+        </nav>
+      </section>
+
+      <section id="groups-screen" class="screen" aria-labelledby="groups-title">
+        <header class="top-bar">
+          <div>
+            <p class="eyebrow">Private Space</p>
+            <h1 id="groups-title">Groups</h1>
+          </div>
+          <button class="ghost-button" data-screen="home" type="button">Home</button>
+        </header>
+
+        <form id="group-form" class="stacked-form panel">
+          <div class="field">
+            <label for="group-name">Group name</label>
+            <input id="group-name" name="groupName" type="text" autocomplete="off" placeholder="Family, roommates, trip..." required />
+          </div>
+          <p id="group-message" class="form-message" role="status"></p>
+          <button type="submit">Create group</button>
+        </form>
+
+        <section class="content-section" aria-labelledby="group-list-title">
+          <div class="section-heading">
+            <h2 id="group-list-title">My Groups</h2>
+            <span id="groups-count">0 groups</span>
+          </div>
+
+          <div id="empty-groups" class="empty-state">
+            <strong>No groups created</strong>
+            <p>Your groups will appear here after you create one.</p>
+          </div>
+
+          <ul id="groups-list" class="item-list"></ul>
+        </section>
+
+        <nav class="bottom-nav" aria-label="Main navigation">
+          <button class="nav-button" data-screen="home" type="button">Home</button>
+          <button class="nav-button nav-button-active" data-screen="groups" type="button">Groups</button>
+          <button class="nav-button" data-screen="reports" type="button">Reports</button>
+        </nav>
+      </section>
+
+      <section id="reports-screen" class="screen" aria-labelledby="reports-title">
+        <header class="top-bar">
+          <div>
+            <p class="eyebrow">Insights</p>
+            <h1 id="reports-title">Reports</h1>
+          </div>
+          <button class="ghost-button" data-screen="home" type="button">Home</button>
+        </header>
+
+        <section class="stacked-form panel" aria-label="Report filters">
+          <div class="field">
+            <label for="report-group-filter">Group</label>
+            <select id="report-group-filter" name="reportGroupFilter">
+              <option value="all">All groups</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="report-period-filter">Time range</label>
+            <select id="report-period-filter" name="reportPeriodFilter">
+              <option value="30">Last 30 days</option>
+              <option value="90" selected>Last 90 days</option>
+              <option value="365">Last 365 days</option>
+              <option value="all">All time</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="stats-grid" aria-label="Report highlights">
+          <article class="stat-card">
+            <p class="panel-label">Total spent</p>
+            <p id="report-total-spend" class="stat-value">$0.00</p>
+          </article>
+          <article class="stat-card">
+            <p class="panel-label">Expenses</p>
+            <p id="report-expense-count" class="stat-value">0</p>
+          </article>
+          <article class="stat-card">
+            <p class="panel-label">Top category</p>
+            <p id="report-top-category" class="stat-value">None</p>
+          </article>
+        </section>
+
+        <section class="content-section" aria-labelledby="report-insights-title">
+          <div class="section-heading">
+            <h2 id="report-insights-title">Spending Insights</h2>
+          </div>
+          <div id="empty-report-insights" class="empty-state">
+            <strong>No insights yet</strong>
+            <p>Add expenses this month and last month to compare spending.</p>
+          </div>
+          <ul id="report-insights-list" class="insight-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="report-month-title">
+          <div class="section-heading">
+            <h2 id="report-month-title">This Month vs Last Month</h2>
+          </div>
+          <div id="empty-report-month" class="empty-state">
+            <strong>No monthly comparison yet</strong>
+            <p>Add expenses to see your month-over-month change.</p>
+          </div>
+          <ul id="report-month-chart" class="chart-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="report-category-title">
+          <div class="section-heading">
+            <h2 id="report-category-title">By Category</h2>
+          </div>
+          <div id="empty-report-category" class="empty-state">
+            <strong>No data yet</strong>
+            <p>Add expenses to see category trends.</p>
+          </div>
+          <ul id="report-category-chart" class="chart-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="report-group-title">
+          <div class="section-heading">
+            <h2 id="report-group-title">By Group</h2>
+          </div>
+          <div id="empty-report-group" class="empty-state">
+            <strong>No data yet</strong>
+            <p>Group totals will appear here.</p>
+          </div>
+          <ul id="report-group-chart" class="chart-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="report-trend-title">
+          <div class="section-heading">
+            <h2 id="report-trend-title">Monthly Trend</h2>
+          </div>
+          <div id="empty-report-trend" class="empty-state">
+            <strong>No data yet</strong>
+            <p>Month-by-month totals will appear here.</p>
+          </div>
+          <ul id="report-trend-list" class="item-list"></ul>
+        </section>
+
+        <nav class="bottom-nav" aria-label="Main navigation">
+          <button class="nav-button" data-screen="home" type="button">Home</button>
+          <button class="nav-button" data-screen="groups" type="button">Groups</button>
+          <button class="nav-button nav-button-active" data-screen="reports" type="button">Reports</button>
+        </nav>
+      </section>
+
+      <section id="group-detail-screen" class="screen" aria-labelledby="group-detail-title">
+        <header class="top-bar">
+          <button id="back-to-groups-button" class="ghost-button" type="button">Back</button>
+          <button id="detail-logout-button" class="ghost-button" type="button">Log out</button>
+        </header>
+
+        <section class="summary-panel" aria-label="Group detail">
+          <p class="panel-label">Group</p>
+          <h1 id="group-detail-title" class="detail-title">Group name</h1>
+          <p id="group-detail-total" class="group-total">$0.00</p>
+          <p id="group-detail-role" class="muted">Owner</p>
+          <button id="scroll-to-expense-button" class="summary-action" type="button">Add expense</button>
+        </section>
+
+        <form id="expense-form" class="stacked-form panel">
+          <div class="form-title-row">
+            <h2 id="expense-form-title">Add Expense</h2>
+            <button id="cancel-edit-expense-button" class="ghost-button hidden" type="button">Cancel</button>
+          </div>
+
+          <div class="field">
+            <label for="expense-title">Description</label>
+            <input id="expense-title" name="expenseTitle" type="text" autocomplete="off" placeholder="Groceries, dinner, gas..." required />
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="expense-amount">Amount</label>
+              <input id="expense-amount" name="expenseAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required />
+            </div>
+
+            <div class="field">
+              <label for="expense-date">Date</label>
+              <input id="expense-date" name="expenseDate" type="date" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="expense-category">Category</label>
+            <select id="expense-category" name="expenseCategory" required>
+              <option value="Food">Food</option>
+              <option value="Groceries">Groceries</option>
+              <option value="Transport">Transport</option>
+              <option value="Housing">Housing</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Travel">Travel</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <p id="expense-message" class="form-message" role="status"></p>
+          <button id="expense-submit-button" type="submit">Add expense</button>
+        </section>
+
+        <section class="content-section" aria-labelledby="members-title">
+          <div class="section-heading">
+            <h2 id="members-title">Members</h2>
+            <span id="members-count">1 member</span>
+          </div>
+          <ul id="members-list" class="item-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="group-expenses-title">
+          <div class="section-heading">
+            <h2 id="group-expenses-title">Expenses</h2>
+            <span id="group-expense-count">0 expenses</span>
+          </div>
+
+          <div id="empty-group-expenses" class="empty-state">
+            <strong>No expenses yet</strong>
+            <p>Add the first expense for this group above.</p>
+          </div>
+
+          <ul id="group-expense-list" class="expense-list"></ul>
+        </section>
+
+        <section class="danger-zone" aria-labelledby="danger-title">
+          <h2 id="danger-title">Group Settings</h2>
+          <p>Deleting this group removes it from your app.</p>
+          <button id="delete-group-button" class="danger-button" type="button">Delete group</button>
+        </section>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
