@@ -817,6 +817,27 @@ function getAuthReturnMessage() {
   return null;
 }
 
+async function handleAuthCallback() {
+  const queryParams = new URLSearchParams(window.location.search);
+  const code = queryParams.get("code");
+
+  if (!code || !supabaseClient) {
+    return null;
+  }
+
+  const { data: callbackData, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+
+  if (error) {
+    return { kind: "error", message: error.message };
+  }
+
+  if (callbackData.session?.user) {
+    return { kind: "success", message: "Email confirmed. You are signed in." };
+  }
+
+  return null;
+}
+
 function renderApp() {
   const currentUser = getCurrentUser();
 
@@ -1309,6 +1330,8 @@ async function initializeApp() {
     return;
   }
 
+  const callbackReturn = await handleAuthCallback();
+  const finalAuthReturn = callbackReturn || authReturn;
   const { data: sessionData } = await supabaseClient.auth.getSession();
 
   try {
@@ -1326,11 +1349,11 @@ async function initializeApp() {
 
   renderApp();
 
-  if (authReturn?.kind === "success" && getCurrentUser()) {
-    showSessionMessage(authReturn.message);
+  if (finalAuthReturn?.kind === "success" && getCurrentUser()) {
+    showSessionMessage(finalAuthReturn.message);
     window.history.replaceState({}, document.title, window.location.pathname);
-  } else if (authReturn?.kind === "error") {
-    authMessage.textContent = authReturn.message;
+  } else if (finalAuthReturn?.kind === "error") {
+    authMessage.textContent = finalAuthReturn.message;
   }
 }
 
