@@ -292,6 +292,16 @@ button {
   color: var(--text);
 }
 
+.session-message {
+  margin: -12px 0 22px;
+  padding: 12px 14px;
+  border: 1px solid rgba(36, 116, 91, 0.24);
+  border-radius: 8px;
+  background: rgba(36, 116, 91, 0.08);
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
 .content-section {
   padding-bottom: 18px;
 }

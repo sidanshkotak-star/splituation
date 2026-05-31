@@ -59,6 +59,8 @@
           <p id="profile-email" class="muted">you@example.com</p>
         </section>
 
+        <div id="session-message" class="session-message hidden" role="status"></div>
+
         <section class="content-section" aria-labelledby="home-groups-title">
           <div class="section-heading">
             <h2 id="home-groups-title">Your Groups</h2>
@@ -316,7 +318,7 @@
           <ul id="group-expense-list" class="expense-list"></ul>
         </section>
 
-        <section class="danger-zone" aria-labelledby="danger-title">
+        <section id="group-settings-section" class="danger-zone" aria-labelledby="danger-title">
           <h2 id="danger-title">Group Settings</h2>
           <p>Deleting this group removes it from your app.</p>
           <button id="delete-group-button" class="danger-button" type="button">Delete group</button>

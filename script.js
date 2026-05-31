@@ -1,6 +1,7 @@
 const storageKey = "spendwise-mvp-data";
 const supabaseUrl = "https://dvjtgdbezhognizqnebm.supabase.co";
 const supabasePublishableKey = "sb_publishable_iQZxRPVJfUM1iw3mMlAiAw_eHnjpEcp";
+const appRedirectUrl = "https://splituation.com";
 const supabaseClient = window.supabase?.createClient(supabaseUrl, supabasePublishableKey) || null;
 
 const authScreen = document.querySelector("#auth-screen");
@@ -25,6 +26,7 @@ const logoutButton = document.querySelector("#logout-button");
 const detailLogoutButton = document.querySelector("#detail-logout-button");
 const profileName = document.querySelector("#profile-name");
 const profileEmail = document.querySelector("#profile-email");
+const sessionMessage = document.querySelector("#session-message");
 const homeGroupCount = document.querySelector("#home-group-count");
 const homeGroupList = document.querySelector("#home-group-list");
 const emptyHome = document.querySelector("#empty-home");
@@ -41,6 +43,7 @@ const emptyGroups = document.querySelector("#empty-groups");
 
 const backToGroupsButton = document.querySelector("#back-to-groups-button");
 const deleteGroupButton = document.querySelector("#delete-group-button");
+const groupSettingsSection = document.querySelector("#group-settings-section");
 const scrollToExpenseButton = document.querySelector("#scroll-to-expense-button");
 const groupDetailTitle = document.querySelector("#group-detail-title");
 const groupDetailTotal = document.querySelector("#group-detail-total");
@@ -752,6 +755,10 @@ function renderReports() {
 }
 
 function showScreen(screenName) {
+  if (screenName !== "auth" && !getCurrentUser()) {
+    screenName = "auth";
+  }
+
   const screenMap = {
     auth: authScreen,
     home: homeScreen,
@@ -771,6 +778,7 @@ function setAuthMode(nextMode) {
 
   nameField.classList.toggle("hidden", !isSignup);
   displayNameInput.required = isSignup;
+  displayNameInput.value = isSignup ? displayNameInput.value : "";
   authSubmitButton.textContent = isSignup ? "Create account" : "Log in";
   loginModeButton.classList.toggle("mode-button-active", !isSignup);
   signupModeButton.classList.toggle("mode-button-active", isSignup);
@@ -779,6 +787,34 @@ function setAuthMode(nextMode) {
     : "After confirming your email, return here and log in.";
   authMessage.classList.remove("success-message");
   authMessage.textContent = "";
+}
+
+function showSessionMessage(message) {
+  if (!message) {
+    sessionMessage.classList.add("hidden");
+    sessionMessage.textContent = "";
+    return;
+  }
+
+  sessionMessage.textContent = message;
+  sessionMessage.classList.remove("hidden");
+}
+
+function getAuthReturnMessage() {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const queryParams = new URLSearchParams(window.location.search);
+  const authType = hashParams.get("type") || queryParams.get("type");
+  const errorDescription = hashParams.get("error_description") || queryParams.get("error_description");
+
+  if (errorDescription) {
+    return { kind: "error", message: errorDescription.replace(/\+/g, " ") };
+  }
+
+  if (authType === "signup" || authType === "email") {
+    return { kind: "success", message: "Email confirmed. You are signed in." };
+  }
+
+  return null;
 }
 
 function renderApp() {
@@ -888,12 +924,14 @@ function renderGroupDetail() {
   const currentMembership = data.groupMembers.find(
     (member) => member.groupId === group.id && member.userId === data.currentUserId,
   );
+  const isOwner = currentMembership?.role === "owner";
   const members = getGroupMembers(group.id);
   const groupExpenses = getGroupExpenses(group.id);
 
   groupDetailTitle.textContent = group.name;
   groupDetailTotal.textContent = formatCurrency(getGroupTotal(group.id));
-  groupDetailRole.textContent = currentMembership?.role === "owner" ? "Owner" : "Member";
+  groupDetailRole.textContent = isOwner ? "Owner" : "Member";
+  groupSettingsSection.classList.toggle("hidden", !isOwner);
   membersCount.textContent = formatCount(members.length, "member", "members");
   groupExpenseCount.textContent = formatCount(groupExpenses.length, "expense", "expenses");
   emptyGroupExpenses.classList.toggle("hidden", groupExpenses.length > 0);
@@ -1120,6 +1158,15 @@ async function deleteSelectedGroup() {
     return;
   }
 
+  const currentMembership = data.groupMembers.find(
+    (member) => member.groupId === group.id && member.userId === data.currentUserId,
+  );
+
+  if (currentMembership?.role !== "owner") {
+    window.alert("Only the group owner can delete this group.");
+    return;
+  }
+
   const { error } = await supabaseClient.from("groups").delete().eq("id", group.id);
 
   if (error) {
@@ -1164,6 +1211,7 @@ async function handleSignup() {
     email,
     password,
     options: {
+      emailRedirectTo: appRedirectUrl,
       data: {
         display_name: displayName,
       },
@@ -1237,6 +1285,7 @@ async function logout() {
     await supabaseClient.auth.signOut();
   }
 
+  showSessionMessage("");
   data.currentUserId = null;
   selectedGroupId = null;
   selectedExpenseId = null;
@@ -1251,6 +1300,7 @@ async function logout() {
 
 async function initializeApp() {
   expenseDateInput.value = getTodayValue();
+  const authReturn = getAuthReturnMessage();
 
   if (!supabaseClient) {
     authMessage.textContent = "Supabase could not load. Check your internet connection and refresh.";
@@ -1274,6 +1324,13 @@ async function initializeApp() {
   }
 
   renderApp();
+
+  if (authReturn?.kind === "success" && getCurrentUser()) {
+    showSessionMessage(authReturn.message);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } else if (authReturn?.kind === "error") {
+    authMessage.textContent = authReturn.message;
+  }
 }
 
 authForm.addEventListener("submit", async (event) => {
