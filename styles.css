@@ -56,6 +56,10 @@ select {
   display: none;
 }
 
+#auth-screen .hidden {
+  display: none !important;
+}
+
 .brand-block {
   padding-top: 24px;
 }

@@ -1299,6 +1299,7 @@ async function logout() {
 }
 
 async function initializeApp() {
+  setAuthMode("login");
   expenseDateInput.value = getTodayValue();
   const authReturn = getAuthReturnMessage();
 
