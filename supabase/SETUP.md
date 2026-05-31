@@ -1,6 +1,6 @@
 # Supabase Setup
 
-This folder contains the starter database setup for SpendWise.
+This folder contains the starter database setup for Splituation.
 
 ## What You Do In Supabase
 
