@@ -372,6 +372,10 @@ button {
   width: 100%;
 }
 
+.export-button {
+  width: 100%;
+}
+
 .item-list {
   display: grid;
   gap: 10px;

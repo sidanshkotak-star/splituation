@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>Splituation</title>
-    <link rel="stylesheet" href="./styles.css?v=20260606-payer-splits-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260606-csv-export" />
   </head>
   <body>
     <main class="app-shell">
@@ -41,7 +41,7 @@
             <p id="auth-message" class="form-message" role="status"></p>
             <p id="auth-help" class="auth-help">Use the email and password you created for Splituation.</p>
             <button id="forgot-password-button" class="link-button" type="button">Forgot password?</button>
-            <p class="build-version">Build 20260606.5</p>
+            <p class="build-version">Build 20260606.6</p>
             <button id="auth-submit-button" type="submit">Log in</button>
           </form>
 
@@ -63,7 +63,7 @@
 
             <p id="reset-message" class="form-message" role="status"></p>
             <p id="reset-help" class="auth-help">Enter your email and we will send a password reset link.</p>
-            <p class="build-version">Build 20260606.5</p>
+            <p class="build-version">Build 20260606.6</p>
             <button id="reset-submit-button" type="submit">Send reset link</button>
           </form>
         </div>
@@ -201,6 +201,9 @@
               <option value="all">All time</option>
             </select>
           </div>
+
+          <p id="export-csv-message" class="form-message" role="status"></p>
+          <button id="export-csv-button" class="export-button" type="button">Export CSV</button>
         </section>
 
         <section class="stats-grid" aria-label="Report highlights">
@@ -419,6 +422,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./script.js?v=20260606-payer-splits-3"></script>
+    <script src="./script.js?v=20260606-csv-export"></script>
   </body>
 </html>

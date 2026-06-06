@@ -106,6 +106,8 @@ const emptyReportGroup = document.querySelector("#empty-report-group");
 const emptyReportTrend = document.querySelector("#empty-report-trend");
 const emptyReportInsights = document.querySelector("#empty-report-insights");
 const emptyReportMonth = document.querySelector("#empty-report-month");
+const exportCsvButton = document.querySelector("#export-csv-button");
+const exportCsvMessage = document.querySelector("#export-csv-message");
 
 let authMode = "login";
 let resetMode = "request";
@@ -1040,6 +1042,93 @@ function renderReports() {
   renderMonthComparison(currentMonthTotal, previousMonthTotal);
   renderInsights(expenses, categoryTotals, groupTotals, currentMonthTotal, previousMonthTotal);
   renderTrendList(expenses);
+}
+
+function escapeCsvValue(value) {
+  const stringValue = String(value ?? "");
+
+  if (/[",\n\r]/.test(stringValue)) {
+    return `"${stringValue.replaceAll('"', '""')}"`;
+  }
+
+  return stringValue;
+}
+
+function getExpensePayerBreakdown(expense) {
+  return getExpensePayerContributions(expense)
+    .map((payer) => `${getUserName(payer.userId)} ${formatCurrency(fromCents(payer.amountCents))} (${payer.percent}%)`)
+    .join("; ");
+}
+
+function getReportFilterLabel() {
+  const groupLabel =
+    reportFilters.groupId === "all" ? "All groups" : getMyGroup(reportFilters.groupId)?.name || "Selected group";
+  const periodLabel =
+    reportPeriodFilter.options[reportPeriodFilter.selectedIndex]?.textContent || "Selected time range";
+
+  return `${groupLabel} | ${periodLabel}`;
+}
+
+function buildExpensesCsv(expenses) {
+  const headers = [
+    "Date",
+    "Group",
+    "Description",
+    "Category",
+    "Amount",
+    "Paid By",
+    "Payer Breakdown",
+    "Created By",
+    "Report Filter",
+  ];
+  const rows = expenses.map((expense) => {
+    const group = data.groups.find((savedGroup) => savedGroup.id === expense.groupId);
+
+    return [
+      expense.expenseDate,
+      group?.name || "Group",
+      expense.title,
+      expense.category,
+      expense.amount.toFixed(2),
+      getExpensePayerLabel(expense).replace(/^Paid by /, ""),
+      getExpensePayerBreakdown(expense),
+      getUserName(expense.createdBy),
+      getReportFilterLabel(),
+    ];
+  });
+
+  return [headers, ...rows].map((row) => row.map(escapeCsvValue).join(",")).join("\r\n");
+}
+
+function downloadCsv(filename, csvContent) {
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportFilteredExpensesToCsv() {
+  const expenses = getReportExpenses();
+
+  exportCsvMessage.classList.remove("success-message");
+
+  if (expenses.length === 0) {
+    exportCsvMessage.textContent = "No expenses match the current report filters.";
+    return;
+  }
+
+  const today = getTodayValue();
+  const csvContent = buildExpensesCsv(expenses);
+
+  downloadCsv(`splituation-expenses-${today}.csv`, csvContent);
+  exportCsvMessage.classList.add("success-message");
+  exportCsvMessage.textContent = `Exported ${formatCount(expenses.length, "expense", "expenses")}.`;
 }
 
 function showScreen(screenName) {
@@ -2374,12 +2463,15 @@ scrollToExpenseButton.addEventListener("click", () => {
 });
 reportGroupFilter.addEventListener("change", () => {
   reportFilters.groupId = reportGroupFilter.value;
+  exportCsvMessage.textContent = "";
   renderReports();
 });
 reportPeriodFilter.addEventListener("change", () => {
   reportFilters.period = reportPeriodFilter.value;
+  exportCsvMessage.textContent = "";
   renderReports();
 });
+exportCsvButton.addEventListener("click", exportFilteredExpensesToCsv);
 backToGroupsButton.addEventListener("click", () => {
   selectedExpenseId = null;
   renderGroups();
