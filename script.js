@@ -78,6 +78,8 @@ const expenseTitleInput = document.querySelector("#expense-title");
 const expenseAmountInput = document.querySelector("#expense-amount");
 const expenseDateInput = document.querySelector("#expense-date");
 const expenseCategoryInput = document.querySelector("#expense-category");
+const payerSplitList = document.querySelector("#payer-split-list");
+const payerTotalLabel = document.querySelector("#payer-total-label");
 const expenseMessage = document.querySelector("#expense-message");
 const expenseSubmitButton = document.querySelector("#expense-submit-button");
 const cancelEditExpenseButton = document.querySelector("#cancel-edit-expense-button");
@@ -136,6 +138,7 @@ function createEmptyData() {
     groups: [],
     groupMembers: [],
     expenses: [],
+    expensePayers: [],
     groupInvites: [],
     groupSettlements: [],
   };
@@ -157,6 +160,7 @@ function normalizeData(savedData) {
     groups: Array.isArray(savedData.groups) ? savedData.groups : [],
     groupMembers: Array.isArray(savedData.groupMembers) ? savedData.groupMembers : [],
     expenses: Array.isArray(savedData.expenses) ? savedData.expenses : [],
+    expensePayers: Array.isArray(savedData.expensePayers) ? savedData.expensePayers : [],
     groupInvites: Array.isArray(savedData.groupInvites) ? savedData.groupInvites : [],
     groupSettlements: Array.isArray(savedData.groupSettlements) ? savedData.groupSettlements : [],
   };
@@ -306,6 +310,16 @@ function mapRemoteExpense(expense) {
   };
 }
 
+function mapRemoteExpensePayer(expensePayer) {
+  return {
+    id: expensePayer.id,
+    expenseId: expensePayer.expense_id,
+    userId: expensePayer.user_id,
+    percent: Number(expensePayer.percent),
+    createdAt: expensePayer.created_at,
+  };
+}
+
 function mapRemoteInvite(invite) {
   return {
     id: invite.id,
@@ -350,6 +364,7 @@ function getRemoteProfileIds() {
       ...data.groupMembers.map((member) => member.userId),
       ...data.expenses.map((expense) => expense.createdBy),
       ...data.expenses.map((expense) => expense.paidBy),
+      ...data.expensePayers.map((payer) => payer.userId),
       ...data.groupInvites.map((invite) => invite.invitedBy),
       ...data.groupSettlements.map((settlement) => settlement.fromUser),
       ...data.groupSettlements.map((settlement) => settlement.toUser),
@@ -400,20 +415,30 @@ async function migrateLocalDataToSupabase() {
   const localExpenses = data.expenses.filter((expense) => groupIdMap.has(expense.groupId));
 
   for (const localExpense of localExpenses) {
-    const { error } = await supabaseClient.from("expenses").insert({
-      group_id: groupIdMap.get(localExpense.groupId),
-      created_by: data.currentUserId,
-      paid_by: data.currentUserId,
-      title: localExpense.title,
-      amount: localExpense.amount,
-      category: localExpense.category,
-      expense_date: localExpense.expenseDate,
-      notes: localExpense.notes || null,
-    });
+    const { data: remoteExpense, error } = await supabaseClient
+      .from("expenses")
+      .insert({
+        group_id: groupIdMap.get(localExpense.groupId),
+        created_by: data.currentUserId,
+        paid_by: data.currentUserId,
+        title: localExpense.title,
+        amount: localExpense.amount,
+        category: localExpense.category,
+        expense_date: localExpense.expenseDate,
+        notes: localExpense.notes || null,
+      })
+      .select()
+      .single();
 
     if (error) {
       throw error;
     }
+
+    await supabaseClient.from("expense_payers").insert({
+      expense_id: remoteExpense.id,
+      user_id: data.currentUserId,
+      percent: 100,
+    });
   }
 
   localStorage.setItem(getMigrationKey(data.currentUserId), "true");
@@ -424,10 +449,11 @@ async function loadRemoteAppData() {
     return;
   }
 
-  const [groupsResult, membersResult, expensesResult, invitesResult, settlementsResult] = await Promise.all([
+  const [groupsResult, membersResult, expensesResult, expensePayersResult, invitesResult, settlementsResult] = await Promise.all([
     supabaseClient.from("groups").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("group_members").select("*").order("created_at", { ascending: true }),
     supabaseClient.from("expenses").select("*").order("expense_date", { ascending: false }),
+    supabaseClient.from("expense_payers").select("*").order("created_at", { ascending: true }),
     supabaseClient.from("group_invites").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("group_settlements").select("*").order("settled_at", { ascending: false }),
   ]);
@@ -444,6 +470,10 @@ async function loadRemoteAppData() {
     throw expensesResult.error;
   }
 
+  if (expensePayersResult.error && !expensePayersResult.error.message?.includes("expense_payers")) {
+    throw expensePayersResult.error;
+  }
+
   if (invitesResult.error) {
     throw invitesResult.error;
   }
@@ -455,6 +485,7 @@ async function loadRemoteAppData() {
   data.groups = groupsResult.data.map(mapRemoteGroup);
   data.groupMembers = membersResult.data.map(mapRemoteMember);
   data.expenses = expensesResult.data.map(mapRemoteExpense);
+  data.expensePayers = expensePayersResult.error ? [] : expensePayersResult.data.map(mapRemoteExpensePayer);
   data.groupInvites = invitesResult.data.map(mapRemoteInvite);
   data.groupSettlements = settlementsResult.error ? [] : settlementsResult.data.map(mapRemoteSettlement);
 
@@ -525,6 +556,65 @@ function getGroupExpenses(groupId) {
     .sort(sortExpensesNewestFirst);
 }
 
+function getExpensePayers(expenseId) {
+  const payers = data.expensePayers.filter((payer) => payer.expenseId === expenseId);
+
+  if (payers.length > 0) {
+    return payers;
+  }
+
+  const expense = data.expenses.find((savedExpense) => savedExpense.id === expenseId);
+
+  if (!expense?.paidBy) {
+    return [];
+  }
+
+  return [
+    {
+      expenseId,
+      userId: expense.paidBy,
+      percent: 100,
+    },
+  ];
+}
+
+function getExpensePayerContributions(expense) {
+  const payers = getExpensePayers(expense.id);
+  const totalCents = toCents(expense.amount);
+  let assignedCents = 0;
+
+  return payers.map((payer, index) => {
+    const isLastPayer = index === payers.length - 1;
+    const amountCents = isLastPayer ? totalCents - assignedCents : Math.round((totalCents * payer.percent) / 100);
+
+    assignedCents += amountCents;
+
+    return {
+      userId: payer.userId,
+      percent: payer.percent,
+      amountCents,
+    };
+  });
+}
+
+function getExpensePayerLabel(expense) {
+  const payers = getExpensePayers(expense.id);
+
+  if (payers.length === 0) {
+    return "Paid by Unknown";
+  }
+
+  if (payers.length === 1 && Math.round(payers[0].percent) === 100) {
+    return `Paid by ${getUserName(payers[0].userId)}`;
+  }
+
+  const payerLabels = payers
+    .map((payer) => `${getUserName(payer.userId)} ${Number(payer.percent).toFixed(payer.percent % 1 === 0 ? 0 : 2)}%`)
+    .join(", ");
+
+  return `Paid by ${payerLabels}`;
+}
+
 function getGroupSettlements(groupId) {
   return data.groupSettlements
     .filter((settlement) => settlement.groupId === groupId)
@@ -551,11 +641,13 @@ function getSettleUpSummary(groupId) {
   const totalCents = groupExpenses.reduce((sum, expense) => sum + toCents(expense.amount), 0);
 
   groupExpenses.forEach((expense) => {
-    if (!paidByMember.has(expense.paidBy)) {
-      return;
-    }
+    getExpensePayerContributions(expense).forEach((payer) => {
+      if (!paidByMember.has(payer.userId)) {
+        return;
+      }
 
-    paidByMember.set(expense.paidBy, paidByMember.get(expense.paidBy) + toCents(expense.amount));
+      paidByMember.set(payer.userId, paidByMember.get(payer.userId) + payer.amountCents);
+    });
   });
 
   if (members.length > 0) {
@@ -1367,6 +1459,123 @@ function createSettlementPaymentItem(payment) {
   return item;
 }
 
+function updatePayerTotalLabel() {
+  const total = Array.from(payerSplitList.querySelectorAll("input")).reduce((sum, input) => {
+    const value = Number(input.value);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  payerTotalLabel.textContent = `${total.toFixed(total % 1 === 0 ? 0 : 2)}%`;
+  payerTotalLabel.classList.toggle("payer-total-warning", Math.abs(total - 100) > 0.01);
+}
+
+function renderPayerSplitInputs(expense = null) {
+  const members = getGroupMembers(selectedGroupId);
+  const existingPayers = new Map();
+
+  if (expense) {
+    getExpensePayers(expense.id).forEach((payer) => {
+      existingPayers.set(payer.userId, payer.percent);
+    });
+  }
+
+  payerSplitList.innerHTML = "";
+
+  members.forEach((member) => {
+    const row = document.createElement("div");
+    const name = document.createElement("span");
+    const inputWrap = document.createElement("div");
+    const input = document.createElement("input");
+    const percentLabel = document.createElement("span");
+    const defaultPercent = expense
+      ? existingPayers.get(member.userId) || 0
+      : member.userId === data.currentUserId
+        ? 100
+        : 0;
+
+    row.className = "payer-split-row";
+    inputWrap.className = "payer-percent-input";
+    name.textContent = member.user.displayName;
+    input.type = "number";
+    input.min = "0";
+    input.max = "100";
+    input.step = "0.01";
+    input.inputMode = "decimal";
+    input.value = defaultPercent;
+    input.dataset.userId = member.userId;
+    input.setAttribute("aria-label", `${member.user.displayName} paid percent`);
+    percentLabel.textContent = "%";
+    input.addEventListener("input", updatePayerTotalLabel);
+
+    inputWrap.append(input, percentLabel);
+    row.append(name, inputWrap);
+    payerSplitList.appendChild(row);
+  });
+
+  updatePayerTotalLabel();
+}
+
+function getPayerSplitsFromForm() {
+  const payerSplits = Array.from(payerSplitList.querySelectorAll("input"))
+    .map((input) => ({
+      userId: input.dataset.userId,
+      percent: Number(input.value),
+    }))
+    .filter((payer) => Number.isFinite(payer.percent) && payer.percent > 0);
+  const total = payerSplits.reduce((sum, payer) => sum + payer.percent, 0);
+
+  if (payerSplits.length === 0) {
+    expenseMessage.textContent = "Add at least one payer percentage.";
+    return null;
+  }
+
+  if (payerSplits.some((payer) => payer.percent > 100)) {
+    expenseMessage.textContent = "A payer percentage cannot be more than 100%.";
+    return null;
+  }
+
+  if (Math.abs(total - 100) > 0.01) {
+    expenseMessage.textContent = "Payer percentages must add up to 100%.";
+    return null;
+  }
+
+  return payerSplits;
+}
+
+function getPrimaryPayerId(payerSplits) {
+  return [...payerSplits].sort((first, second) => second.percent - first.percent)[0].userId;
+}
+
+function getPayerSaveErrorMessage(error) {
+  if (error.message?.includes("expense_payers")) {
+    return "Run supabase/expense-payers.sql in Supabase before saving payer percentages.";
+  }
+
+  return error.message;
+}
+
+async function saveExpensePayers(expenseId, payerSplits, replaceExisting = false) {
+  if (replaceExisting) {
+    const { error: deleteError } = await supabaseClient.from("expense_payers").delete().eq("expense_id", expenseId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+  }
+
+  const { error } = await supabaseClient.from("expense_payers").insert(
+    payerSplits.map((payer) => ({
+      expense_id: expenseId,
+      user_id: payer.userId,
+      percent: payer.percent,
+    })),
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
 function createGroupInviteListItem(invite) {
   const item = document.createElement("li");
   const details = document.createElement("div");
@@ -1403,7 +1612,7 @@ function createExpenseListItem(expense) {
   deleteButton.className = "small-danger-button";
 
   title.textContent = expense.title;
-  meta.textContent = `${expense.category} | ${formatDate(expense.expenseDate)} | Paid by ${getUserName(expense.paidBy)}`;
+  meta.textContent = `${expense.category} | ${formatDate(expense.expenseDate)} | ${getExpensePayerLabel(expense)}`;
   amount.textContent = formatCurrency(expense.amount);
   editButton.type = "button";
   editButton.textContent = "Edit";
@@ -1435,6 +1644,7 @@ function resetExpenseForm() {
   expenseSubmitButton.textContent = "Add expense";
   cancelEditExpenseButton.classList.add("hidden");
   expenseMessage.textContent = "";
+  renderPayerSplitInputs();
 }
 
 function startEditExpense(expenseId) {
@@ -1451,6 +1661,7 @@ function startEditExpense(expenseId) {
   expenseAmountInput.value = expense.amount.toFixed(2);
   expenseDateInput.value = expense.expenseDate;
   expenseCategoryInput.value = expense.category;
+  renderPayerSplitInputs(expense);
   expenseFormTitle.textContent = "Edit Expense";
   expenseSubmitButton.textContent = "Save expense";
   cancelEditExpenseButton.classList.remove("hidden");
@@ -1464,6 +1675,7 @@ async function handleExpenseSubmit() {
   const amount = Number(expenseAmountInput.value);
   const expenseDate = expenseDateInput.value;
   const category = expenseCategoryInput.value;
+  const payerSplits = getPayerSplitsFromForm();
 
   if (!group) {
     expenseMessage.textContent = "Choose a group before adding an expense.";
@@ -1485,6 +1697,12 @@ async function handleExpenseSubmit() {
     return;
   }
 
+  if (!payerSplits) {
+    return;
+  }
+
+  const primaryPayerId = getPrimaryPayerId(payerSplits);
+
   expenseSubmitButton.disabled = true;
   expenseSubmitButton.textContent = selectedExpenseId ? "Saving..." : "Adding...";
 
@@ -1496,7 +1714,7 @@ async function handleExpenseSubmit() {
         amount,
         category,
         expense_date: expenseDate,
-        paid_by: data.currentUserId,
+        paid_by: primaryPayerId,
       })
       .eq("id", selectedExpenseId)
       .eq("group_id", selectedGroupId);
@@ -1507,21 +1725,44 @@ async function handleExpenseSubmit() {
       expenseMessage.textContent = error.message;
       return;
     }
+
+    try {
+      await saveExpensePayers(selectedExpenseId, payerSplits, true);
+    } catch (payerError) {
+      expenseSubmitButton.disabled = false;
+      expenseSubmitButton.textContent = "Save expense";
+      expenseMessage.textContent = getPayerSaveErrorMessage(payerError);
+      return;
+    }
   } else {
-    const { error } = await supabaseClient.from("expenses").insert({
-      group_id: group.id,
-      created_by: data.currentUserId,
-      paid_by: data.currentUserId,
-      title,
-      amount,
-      category,
-      expense_date: expenseDate,
-    });
+    const { data: savedExpense, error } = await supabaseClient
+      .from("expenses")
+      .insert({
+        group_id: group.id,
+        created_by: data.currentUserId,
+        paid_by: primaryPayerId,
+        title,
+        amount,
+        category,
+        expense_date: expenseDate,
+      })
+      .select()
+      .single();
 
     if (error) {
       expenseSubmitButton.disabled = false;
       expenseSubmitButton.textContent = "Add expense";
       expenseMessage.textContent = error.message;
+      return;
+    }
+
+    try {
+      await saveExpensePayers(savedExpense.id, payerSplits);
+    } catch (payerError) {
+      await supabaseClient.from("expenses").delete().eq("id", savedExpense.id);
+      expenseSubmitButton.disabled = false;
+      expenseSubmitButton.textContent = "Add expense";
+      expenseMessage.textContent = getPayerSaveErrorMessage(payerError);
       return;
     }
   }

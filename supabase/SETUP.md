@@ -17,6 +17,7 @@ This folder contains the starter database setup for Splituation.
 - `groups`
 - `group_members`
 - `expenses`
+- `expense_payers`
 - `group_invites`
 - `group_settlements`
 
@@ -33,6 +34,10 @@ After running `schema.sql`, also run `invites.sql` in the Supabase SQL Editor. I
 ## Settle Up
 
 After running `schema.sql`, also run `settlements.sql` in the Supabase SQL Editor. It creates the settlement records the app uses when someone clicks **I've been paid**.
+
+## Custom Payers
+
+After running `schema.sql`, also run `expense-payers.sql` in the Supabase SQL Editor. It lets an expense be paid by one or more group members with percentages, like Sid 60% and Alex 40%.
 
 ## Email Confirmation Redirects
 

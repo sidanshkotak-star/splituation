@@ -53,6 +53,15 @@ create table if not exists public.expenses (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.expense_payers (
+  id uuid primary key default gen_random_uuid(),
+  expense_id uuid not null references public.expenses(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  percent numeric(5, 2) not null check (percent > 0 and percent <= 100),
+  created_at timestamptz not null default now(),
+  unique (expense_id, user_id)
+);
+
 create table if not exists public.group_invites (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references public.groups(id) on delete cascade,
@@ -82,11 +91,18 @@ create index if not exists group_members_group_id_idx on public.group_members(gr
 create index if not exists group_members_user_id_idx on public.group_members(user_id);
 create index if not exists expenses_group_id_idx on public.expenses(group_id);
 create index if not exists expenses_expense_date_idx on public.expenses(expense_date);
+create index if not exists expense_payers_expense_id_idx on public.expense_payers(expense_id);
+create index if not exists expense_payers_user_id_idx on public.expense_payers(user_id);
 create index if not exists group_invites_token_idx on public.group_invites(token);
 create index if not exists group_invites_invited_email_idx on public.group_invites(invited_email);
 create index if not exists group_settlements_group_id_idx on public.group_settlements(group_id);
 create index if not exists group_settlements_from_user_idx on public.group_settlements(from_user);
 create index if not exists group_settlements_to_user_idx on public.group_settlements(to_user);
+
+insert into public.expense_payers (expense_id, user_id, percent)
+select id, paid_by, 100
+from public.expenses
+on conflict (expense_id, user_id) do nothing;
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -176,6 +192,39 @@ as $$
   );
 $$;
 
+create or replace function public.is_expense_group_member(check_expense_id uuid, check_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.expenses
+    where id = check_expense_id
+      and public.is_group_member(group_id, check_user_id)
+  );
+$$;
+
+create or replace function public.can_manage_expense_payers(check_expense_id uuid, check_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.expenses
+    where id = check_expense_id
+      and (
+        created_by = check_user_id
+        or public.is_group_owner(group_id, check_user_id)
+      )
+  );
+$$;
+
 create or replace function public.accept_group_invite(invite_id uuid)
 returns uuid
 language plpgsql
@@ -224,6 +273,7 @@ alter table public.profiles enable row level security;
 alter table public.groups enable row level security;
 alter table public.group_members enable row level security;
 alter table public.expenses enable row level security;
+alter table public.expense_payers enable row level security;
 alter table public.group_invites enable row level security;
 alter table public.group_settlements enable row level security;
 
@@ -364,6 +414,41 @@ using (
   created_by = auth.uid()
   or public.is_group_owner(group_id, auth.uid())
 );
+
+drop policy if exists "expense_payers_select_group_member" on public.expense_payers;
+create policy "expense_payers_select_group_member"
+on public.expense_payers
+for select
+to authenticated
+using (public.is_expense_group_member(expense_id, auth.uid()));
+
+drop policy if exists "expense_payers_insert_expense_manager" on public.expense_payers;
+create policy "expense_payers_insert_expense_manager"
+on public.expense_payers
+for insert
+to authenticated
+with check (
+  public.can_manage_expense_payers(expense_id, auth.uid())
+  and public.is_expense_group_member(expense_id, user_id)
+);
+
+drop policy if exists "expense_payers_update_expense_manager" on public.expense_payers;
+create policy "expense_payers_update_expense_manager"
+on public.expense_payers
+for update
+to authenticated
+using (public.can_manage_expense_payers(expense_id, auth.uid()))
+with check (
+  public.can_manage_expense_payers(expense_id, auth.uid())
+  and public.is_expense_group_member(expense_id, user_id)
+);
+
+drop policy if exists "expense_payers_delete_expense_manager" on public.expense_payers;
+create policy "expense_payers_delete_expense_manager"
+on public.expense_payers
+for delete
+to authenticated
+using (public.can_manage_expense_payers(expense_id, auth.uid()));
 
 drop policy if exists "group_invites_select_group_member_or_invitee" on public.group_invites;
 create policy "group_invites_select_group_member_or_invitee"
