@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>Splituation</title>
-    <link rel="stylesheet" href="./styles.css?v=20260606-invites" />
+    <link rel="stylesheet" href="./styles.css?v=20260606-settle-up" />
   </head>
   <body>
     <main class="app-shell">
@@ -41,7 +41,7 @@
             <p id="auth-message" class="form-message" role="status"></p>
             <p id="auth-help" class="auth-help">Use the email and password you created for Splituation.</p>
             <button id="forgot-password-button" class="link-button" type="button">Forgot password?</button>
-            <p class="build-version">Build 20260606.1</p>
+            <p class="build-version">Build 20260606.2</p>
             <button id="auth-submit-button" type="submit">Log in</button>
           </form>
 
@@ -63,7 +63,7 @@
 
             <p id="reset-message" class="form-message" role="status"></p>
             <p id="reset-help" class="auth-help">Enter your email and we will send a password reset link.</p>
-            <p class="build-version">Build 20260606.1</p>
+            <p class="build-version">Build 20260606.2</p>
             <button id="reset-submit-button" type="submit">Send reset link</button>
           </form>
         </div>
@@ -380,6 +380,27 @@
           <ul id="group-expense-list" class="expense-list"></ul>
         </section>
 
+        <section class="content-section" aria-labelledby="settle-up-title">
+          <div class="section-heading">
+            <h2 id="settle-up-title">Settle Up</h2>
+          </div>
+
+          <div id="empty-settlement-summary" class="empty-state">
+            <strong>No balances yet</strong>
+            <p>Add expenses with group members to see who owes whom.</p>
+          </div>
+
+          <ul id="settlement-summary-list" class="settlement-list"></ul>
+
+          <div id="empty-settlement-payments" class="empty-state">
+            <strong>All settled up</strong>
+            <p>No one owes money right now.</p>
+          </div>
+
+          <ul id="settlement-payment-list" class="settlement-list"></ul>
+          <p id="settlement-message" class="form-message" role="status"></p>
+        </section>
+
         <section id="group-settings-section" class="danger-zone" aria-labelledby="danger-title">
           <h2 id="danger-title">Group Settings</h2>
           <p>Deleting this group removes it from your app.</p>
@@ -389,6 +410,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./script.js?v=20260606-invites"></script>
+    <script src="./script.js?v=20260606-settle-up"></script>
   </body>
 </html>

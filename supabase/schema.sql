@@ -66,12 +66,27 @@ create table if not exists public.group_invites (
   unique (group_id, invited_email, status)
 );
 
+create table if not exists public.group_settlements (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.groups(id) on delete cascade,
+  from_user uuid not null references auth.users(id) on delete cascade,
+  to_user uuid not null references auth.users(id) on delete cascade,
+  amount numeric(12, 2) not null check (amount > 0),
+  created_by uuid not null references auth.users(id) on delete cascade,
+  settled_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  check (from_user <> to_user)
+);
+
 create index if not exists group_members_group_id_idx on public.group_members(group_id);
 create index if not exists group_members_user_id_idx on public.group_members(user_id);
 create index if not exists expenses_group_id_idx on public.expenses(group_id);
 create index if not exists expenses_expense_date_idx on public.expenses(expense_date);
 create index if not exists group_invites_token_idx on public.group_invites(token);
 create index if not exists group_invites_invited_email_idx on public.group_invites(invited_email);
+create index if not exists group_settlements_group_id_idx on public.group_settlements(group_id);
+create index if not exists group_settlements_from_user_idx on public.group_settlements(from_user);
+create index if not exists group_settlements_to_user_idx on public.group_settlements(to_user);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -210,6 +225,7 @@ alter table public.groups enable row level security;
 alter table public.group_members enable row level security;
 alter table public.expenses enable row level security;
 alter table public.group_invites enable row level security;
+alter table public.group_settlements enable row level security;
 
 drop policy if exists "profiles_select_visible" on public.profiles;
 create policy "profiles_select_visible"
@@ -381,4 +397,24 @@ using (
 with check (
   public.is_group_member(group_id, auth.uid())
   or lower(invited_email) = lower(auth.jwt() ->> 'email')
+);
+
+drop policy if exists "group_settlements_select_group_member" on public.group_settlements;
+create policy "group_settlements_select_group_member"
+on public.group_settlements
+for select
+to authenticated
+using (public.is_group_member(group_id, auth.uid()));
+
+drop policy if exists "group_settlements_insert_paid_to_user" on public.group_settlements;
+create policy "group_settlements_insert_paid_to_user"
+on public.group_settlements
+for insert
+to authenticated
+with check (
+  created_by = auth.uid()
+  and to_user = auth.uid()
+  and public.is_group_member(group_id, auth.uid())
+  and public.is_group_member(group_id, from_user)
+  and public.is_group_member(group_id, to_user)
 );

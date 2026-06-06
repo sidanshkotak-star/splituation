@@ -84,6 +84,11 @@ const cancelEditExpenseButton = document.querySelector("#cancel-edit-expense-but
 const groupExpenseCount = document.querySelector("#group-expense-count");
 const groupExpenseList = document.querySelector("#group-expense-list");
 const emptyGroupExpenses = document.querySelector("#empty-group-expenses");
+const settlementSummaryList = document.querySelector("#settlement-summary-list");
+const settlementPaymentList = document.querySelector("#settlement-payment-list");
+const emptySettlementSummary = document.querySelector("#empty-settlement-summary");
+const emptySettlementPayments = document.querySelector("#empty-settlement-payments");
+const settlementMessage = document.querySelector("#settlement-message");
 const reportGroupFilter = document.querySelector("#report-group-filter");
 const reportPeriodFilter = document.querySelector("#report-period-filter");
 const reportTotalSpend = document.querySelector("#report-total-spend");
@@ -132,6 +137,7 @@ function createEmptyData() {
     groupMembers: [],
     expenses: [],
     groupInvites: [],
+    groupSettlements: [],
   };
 }
 
@@ -152,6 +158,7 @@ function normalizeData(savedData) {
     groupMembers: Array.isArray(savedData.groupMembers) ? savedData.groupMembers : [],
     expenses: Array.isArray(savedData.expenses) ? savedData.expenses : [],
     groupInvites: Array.isArray(savedData.groupInvites) ? savedData.groupInvites : [],
+    groupSettlements: Array.isArray(savedData.groupSettlements) ? savedData.groupSettlements : [],
   };
 }
 
@@ -172,6 +179,14 @@ function formatCurrency(amount) {
     style: "currency",
     currency: "USD",
   }).format(amount);
+}
+
+function toCents(amount) {
+  return Math.round(Number(amount) * 100);
+}
+
+function fromCents(cents) {
+  return cents / 100;
 }
 
 function formatCount(count, singular, plural) {
@@ -305,6 +320,19 @@ function mapRemoteInvite(invite) {
   };
 }
 
+function mapRemoteSettlement(settlement) {
+  return {
+    id: settlement.id,
+    groupId: settlement.group_id,
+    fromUser: settlement.from_user,
+    toUser: settlement.to_user,
+    amount: Number(settlement.amount),
+    createdBy: settlement.created_by,
+    settledAt: settlement.settled_at,
+    createdAt: settlement.created_at,
+  };
+}
+
 function replaceLocalProfiles(profiles) {
   const profileMap = new Map(data.users.map((user) => [user.id, user]));
 
@@ -323,6 +351,9 @@ function getRemoteProfileIds() {
       ...data.expenses.map((expense) => expense.createdBy),
       ...data.expenses.map((expense) => expense.paidBy),
       ...data.groupInvites.map((invite) => invite.invitedBy),
+      ...data.groupSettlements.map((settlement) => settlement.fromUser),
+      ...data.groupSettlements.map((settlement) => settlement.toUser),
+      ...data.groupSettlements.map((settlement) => settlement.createdBy),
     ].filter(Boolean)),
   );
 }
@@ -393,11 +424,12 @@ async function loadRemoteAppData() {
     return;
   }
 
-  const [groupsResult, membersResult, expensesResult, invitesResult] = await Promise.all([
+  const [groupsResult, membersResult, expensesResult, invitesResult, settlementsResult] = await Promise.all([
     supabaseClient.from("groups").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("group_members").select("*").order("created_at", { ascending: true }),
     supabaseClient.from("expenses").select("*").order("expense_date", { ascending: false }),
     supabaseClient.from("group_invites").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("group_settlements").select("*").order("settled_at", { ascending: false }),
   ]);
 
   if (groupsResult.error) {
@@ -416,10 +448,15 @@ async function loadRemoteAppData() {
     throw invitesResult.error;
   }
 
+  if (settlementsResult.error && !settlementsResult.error.message?.includes("group_settlements")) {
+    throw settlementsResult.error;
+  }
+
   data.groups = groupsResult.data.map(mapRemoteGroup);
   data.groupMembers = membersResult.data.map(mapRemoteMember);
   data.expenses = expensesResult.data.map(mapRemoteExpense);
   data.groupInvites = invitesResult.data.map(mapRemoteInvite);
+  data.groupSettlements = settlementsResult.error ? [] : settlementsResult.data.map(mapRemoteSettlement);
 
   const profileIds = getRemoteProfileIds();
 
@@ -488,6 +525,12 @@ function getGroupExpenses(groupId) {
     .sort(sortExpensesNewestFirst);
 }
 
+function getGroupSettlements(groupId) {
+  return data.groupSettlements
+    .filter((settlement) => settlement.groupId === groupId)
+    .sort((first, second) => (second.settledAt || "").localeCompare(first.settledAt || ""));
+}
+
 function getMyExpenses() {
   const groupIds = new Set(getMyGroups().map((group) => group.id));
   return data.expenses.filter((expense) => groupIds.has(expense.groupId)).sort(sortExpensesNewestFirst);
@@ -495,6 +538,98 @@ function getMyExpenses() {
 
 function getGroupTotal(groupId) {
   return getGroupExpenses(groupId).reduce((total, expense) => total + expense.amount, 0);
+}
+
+function getSettleUpSummary(groupId) {
+  const members = getGroupMembers(groupId);
+  const memberIds = members.map((member) => member.userId);
+  const paidByMember = new Map(memberIds.map((userId) => [userId, 0]));
+  const shareByMember = new Map(memberIds.map((userId) => [userId, 0]));
+  const balanceByMember = new Map(memberIds.map((userId) => [userId, 0]));
+  const groupExpenses = getGroupExpenses(groupId);
+  const groupSettlements = getGroupSettlements(groupId);
+  const totalCents = groupExpenses.reduce((sum, expense) => sum + toCents(expense.amount), 0);
+
+  groupExpenses.forEach((expense) => {
+    if (!paidByMember.has(expense.paidBy)) {
+      return;
+    }
+
+    paidByMember.set(expense.paidBy, paidByMember.get(expense.paidBy) + toCents(expense.amount));
+  });
+
+  if (members.length > 0) {
+    const baseShare = Math.floor(totalCents / members.length);
+    const remainder = totalCents % members.length;
+
+    members.forEach((member, index) => {
+      shareByMember.set(member.userId, baseShare + (index < remainder ? 1 : 0));
+    });
+  }
+
+  members.forEach((member) => {
+    balanceByMember.set(member.userId, paidByMember.get(member.userId) - shareByMember.get(member.userId));
+  });
+
+  groupSettlements.forEach((settlement) => {
+    const amountCents = toCents(settlement.amount);
+
+    if (balanceByMember.has(settlement.fromUser)) {
+      balanceByMember.set(settlement.fromUser, balanceByMember.get(settlement.fromUser) + amountCents);
+    }
+
+    if (balanceByMember.has(settlement.toUser)) {
+      balanceByMember.set(settlement.toUser, balanceByMember.get(settlement.toUser) - amountCents);
+    }
+  });
+
+  const rows = members.map((member) => ({
+    userId: member.userId,
+    name: member.user.displayName,
+    paidCents: paidByMember.get(member.userId),
+    shareCents: shareByMember.get(member.userId),
+    balanceCents: balanceByMember.get(member.userId),
+  }));
+  const creditors = rows
+    .filter((row) => row.balanceCents > 0)
+    .map((row) => ({ ...row, remainingCents: row.balanceCents }))
+    .sort((first, second) => second.remainingCents - first.remainingCents);
+  const debtors = rows
+    .filter((row) => row.balanceCents < 0)
+    .map((row) => ({ ...row, remainingCents: Math.abs(row.balanceCents) }))
+    .sort((first, second) => second.remainingCents - first.remainingCents);
+  const payments = [];
+  let creditorIndex = 0;
+  let debtorIndex = 0;
+
+  while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
+    const creditor = creditors[creditorIndex];
+    const debtor = debtors[debtorIndex];
+    const amountCents = Math.min(creditor.remainingCents, debtor.remainingCents);
+
+    if (amountCents > 0) {
+      payments.push({
+        fromUser: debtor.userId,
+        fromName: debtor.name,
+        toUser: creditor.userId,
+        toName: creditor.name,
+        amountCents,
+      });
+    }
+
+    creditor.remainingCents -= amountCents;
+    debtor.remainingCents -= amountCents;
+
+    if (creditor.remainingCents === 0) {
+      creditorIndex += 1;
+    }
+
+    if (debtor.remainingCents === 0) {
+      debtorIndex += 1;
+    }
+  }
+
+  return { rows, payments, totalCents, settlementCount: groupSettlements.length };
 }
 
 function sortExpensesNewestFirst(firstExpense, secondExpense) {
@@ -1070,6 +1205,8 @@ function openGroupDetail(groupId) {
 
   selectedGroupId = groupId;
   resetExpenseForm();
+  settlementMessage.textContent = "";
+  settlementMessage.classList.remove("success-message");
   renderGroupDetail();
   showScreen("detail");
 }
@@ -1103,6 +1240,8 @@ function renderGroupDetail() {
   membersList.innerHTML = "";
   groupInviteList.innerHTML = "";
   groupExpenseList.innerHTML = "";
+  settlementSummaryList.innerHTML = "";
+  settlementPaymentList.innerHTML = "";
 
   members.forEach((member) => {
     const item = document.createElement("li");
@@ -1127,6 +1266,105 @@ function renderGroupDetail() {
   groupExpenses.forEach((expense) => {
     groupExpenseList.appendChild(createExpenseListItem(expense));
   });
+
+  renderSettleUp(group.id);
+}
+
+function renderSettleUp(groupId) {
+  const summary = getSettleUpSummary(groupId);
+  const hasExpenses = summary.totalCents > 0;
+
+  emptySettlementSummary.classList.toggle("hidden", hasExpenses);
+  settlementSummaryList.classList.toggle("hidden", !hasExpenses);
+  emptySettlementPayments.classList.toggle("hidden", !hasExpenses || summary.payments.length > 0);
+  settlementPaymentList.classList.toggle("hidden", !hasExpenses || summary.payments.length === 0);
+
+  if (!hasExpenses) {
+    return;
+  }
+
+  summary.rows.forEach((row) => {
+    settlementSummaryList.appendChild(createSettlementSummaryItem(row));
+  });
+
+  summary.payments.forEach((payment) => {
+    settlementPaymentList.appendChild(createSettlementPaymentItem(payment));
+  });
+}
+
+function createSettlementSummaryItem(row) {
+  const item = document.createElement("li");
+  const details = document.createElement("div");
+  const name = document.createElement("strong");
+  const meta = document.createElement("span");
+  const balance = document.createElement("p");
+
+  item.className = "settlement-card";
+  balance.className = row.balanceCents > 0 ? "settlement-positive" : row.balanceCents < 0 ? "settlement-negative" : "";
+  name.textContent = row.name;
+  meta.textContent = `Paid ${formatCurrency(fromCents(row.paidCents))} | Share ${formatCurrency(fromCents(row.shareCents))}`;
+
+  if (row.balanceCents > 0) {
+    balance.textContent = `Owed ${formatCurrency(fromCents(row.balanceCents))}`;
+  } else if (row.balanceCents < 0) {
+    balance.textContent = `Owes ${formatCurrency(fromCents(Math.abs(row.balanceCents)))}`;
+  } else {
+    balance.textContent = "Settled";
+  }
+
+  details.append(name, meta);
+  item.append(details, balance);
+
+  return item;
+}
+
+function createSettlementPaymentItem(payment) {
+  const item = document.createElement("li");
+  const details = document.createElement("div");
+  const title = document.createElement("strong");
+  const subtitle = document.createElement("span");
+  const actions = document.createElement("div");
+
+  item.className = "settlement-card settlement-payment-card";
+  actions.className = "settlement-actions";
+  title.textContent = `${payment.fromName} pays ${payment.toName}`;
+  subtitle.textContent = formatCurrency(fromCents(payment.amountCents));
+
+  if (payment.toUser === data.currentUserId) {
+    const paidButton = document.createElement("button");
+
+    paidButton.type = "button";
+    paidButton.textContent = "I've been paid";
+    paidButton.addEventListener("click", async () => {
+      paidButton.disabled = true;
+      paidButton.textContent = "Saving...";
+
+      try {
+        await recordSettlement(payment);
+      } catch (error) {
+        paidButton.disabled = false;
+        paidButton.textContent = "I've been paid";
+        settlementMessage.classList.remove("success-message");
+        settlementMessage.textContent = error.message || "Could not record the payment. Please try again.";
+      }
+    });
+
+    actions.append(paidButton);
+  } else {
+    const note = document.createElement("span");
+
+    note.className = "settlement-note";
+    note.textContent =
+      payment.fromUser === data.currentUserId
+        ? `Pay ${payment.toName}, then they can confirm.`
+        : `${payment.toName} can confirm after payment.`;
+    actions.append(note);
+  }
+
+  details.append(title, subtitle);
+  item.append(details, actions);
+
+  return item;
 }
 
 function createGroupInviteListItem(invite) {
@@ -1370,6 +1608,47 @@ async function deleteSelectedGroup() {
   renderPendingInvites();
   renderReports();
   showScreen("groups");
+}
+
+async function recordSettlement(payment) {
+  const group = getMyGroup(selectedGroupId);
+
+  if (!group) {
+    throw new Error("Open a group before recording a payment.");
+  }
+
+  if (payment.toUser !== data.currentUserId) {
+    throw new Error("Only the person who is owed money can mark this as paid.");
+  }
+
+  const shouldRecord = window.confirm(
+    `Record that ${payment.fromName} paid you ${formatCurrency(fromCents(payment.amountCents))}? Expenses will stay in the group history.`,
+  );
+
+  if (!shouldRecord) {
+    renderGroupDetail();
+    return;
+  }
+
+  const { error } = await supabaseClient.from("group_settlements").insert({
+    group_id: group.id,
+    from_user: payment.fromUser,
+    to_user: payment.toUser,
+    amount: fromCents(payment.amountCents),
+    created_by: data.currentUserId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  await loadRemoteAppData();
+  renderGroups();
+  renderRecentExpenses();
+  renderReports();
+  renderGroupDetail();
+  settlementMessage.classList.add("success-message");
+  settlementMessage.textContent = "Payment recorded. The expenses stayed in your history.";
 }
 
 async function createInvite() {

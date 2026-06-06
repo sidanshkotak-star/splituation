@@ -18,6 +18,7 @@ This folder contains the starter database setup for Splituation.
 - `group_members`
 - `expenses`
 - `group_invites`
+- `group_settlements`
 
 It also turns on Row Level Security so users can only access groups, members, expenses, and invites they are allowed to see.
 
@@ -28,6 +29,10 @@ After the schema runs successfully, we will connect the app to Supabase Auth and
 ## Invite Acceptance
 
 After running `schema.sql`, also run `invites.sql` in the Supabase SQL Editor. It creates the secure function the app uses when an invited user accepts a group invite.
+
+## Settle Up
+
+After running `schema.sql`, also run `settlements.sql` in the Supabase SQL Editor. It creates the settlement records the app uses when someone clicks **I've been paid**.
 
 ## Email Confirmation Redirects
 

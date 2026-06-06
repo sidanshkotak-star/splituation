@@ -457,6 +457,69 @@ button {
   gap: 8px;
 }
 
+.settlement-list {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.settlement-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.settlement-card strong,
+.settlement-card span {
+  display: block;
+}
+
+.settlement-card span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.settlement-card p {
+  margin: 0;
+  font-weight: 850;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.settlement-positive {
+  color: var(--accent-dark);
+}
+
+.settlement-negative {
+  color: var(--danger);
+}
+
+.settlement-payment-card {
+  display: grid;
+  align-items: stretch;
+}
+
+.settlement-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.settlement-note {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0f0eb;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 .expense-main {
   display: flex;
   align-items: flex-start;
