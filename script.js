@@ -1469,6 +1469,43 @@ function updatePayerTotalLabel() {
   payerTotalLabel.classList.toggle("payer-total-warning", Math.abs(total - 100) > 0.01);
 }
 
+function formatPayerPercent(value) {
+  const safeValue = Math.max(0, Math.min(100, Number(value) || 0));
+
+  return Number(safeValue.toFixed(2)).toString();
+}
+
+function handlePayerPercentInput(changedInput) {
+  const inputs = Array.from(payerSplitList.querySelectorAll("input"));
+  let changedValue = Math.max(0, Math.min(100, Number(changedInput.value) || 0));
+
+  if (inputs.length === 2) {
+    const otherInput = inputs.find((input) => input !== changedInput);
+
+    changedInput.value = formatPayerPercent(changedValue);
+    otherInput.value = formatPayerPercent(100 - changedValue);
+    updatePayerTotalLabel();
+    return;
+  }
+
+  const otherTotal = inputs.reduce((sum, input) => {
+    if (input === changedInput) {
+      return sum;
+    }
+
+    const value = Number(input.value);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+  const maxAllowed = Math.max(0, 100 - otherTotal);
+
+  if (changedValue > maxAllowed) {
+    changedValue = maxAllowed;
+  }
+
+  changedInput.value = formatPayerPercent(changedValue);
+  updatePayerTotalLabel();
+}
+
 function renderPayerSplitInputs(expense = null) {
   const members = getGroupMembers(selectedGroupId);
   const existingPayers = new Map();
@@ -1505,7 +1542,7 @@ function renderPayerSplitInputs(expense = null) {
     input.dataset.userId = member.userId;
     input.setAttribute("aria-label", `${member.user.displayName} paid percent`);
     percentLabel.textContent = "%";
-    input.addEventListener("input", updatePayerTotalLabel);
+    input.addEventListener("input", () => handlePayerPercentInput(input));
 
     inputWrap.append(input, percentLabel);
     row.append(name, inputWrap);
