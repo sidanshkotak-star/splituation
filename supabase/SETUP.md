@@ -31,6 +31,8 @@ After the schema runs successfully, we will connect the app to Supabase Auth and
 
 After running `schema.sql`, also run `invites.sql` in the Supabase SQL Editor. It creates the secure function the app uses when an invited user accepts a group invite.
 
+To let group members revoke pending invites and tighten invite updates, also run `revoke-invites.sql`.
+
 ## Settle Up
 
 After running `schema.sql`, also run `settlements.sql` in the Supabase SQL Editor. It creates the settlement records the app uses when someone clicks **I've been paid**.

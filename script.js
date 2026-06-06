@@ -1875,13 +1875,28 @@ function createGroupInviteListItem(invite) {
   const details = document.createElement("div");
   const email = document.createElement("strong");
   const subtitle = document.createElement("span");
+  const actions = document.createElement("div");
+  const revokeButton = document.createElement("button");
 
   item.className = "invite-card";
+  actions.className = "invite-actions";
+  revokeButton.className = "small-danger-button";
   email.textContent = invite.invitedEmail;
   subtitle.textContent = `Pending since ${formatDate(invite.createdAt?.slice(0, 10))}`;
+  revokeButton.type = "button";
+  revokeButton.textContent = "Revoke invite";
+  revokeButton.addEventListener("click", async () => {
+    try {
+      await revokeInvite(invite.id);
+    } catch (error) {
+      inviteMessage.classList.remove("success-message");
+      inviteMessage.textContent = error.message || "Could not revoke the invite. Please try again.";
+    }
+  });
 
   details.append(email, subtitle);
-  item.append(details);
+  actions.append(revokeButton);
+  item.append(details, actions);
 
   return item;
 }
@@ -2245,6 +2260,41 @@ async function createInvite() {
   inviteForm.reset();
   inviteMessage.classList.add("success-message");
   inviteMessage.textContent = "Invite created. Ask them to sign up or log in with that email.";
+  await loadRemoteAppData();
+  renderGroupDetail();
+  renderPendingInvites();
+}
+
+async function revokeInvite(inviteId) {
+  const group = getMyGroup(selectedGroupId);
+  const invite = data.groupInvites.find(
+    (savedInvite) => savedInvite.id === inviteId && savedInvite.groupId === selectedGroupId && savedInvite.status === "pending",
+  );
+
+  if (!group || !invite) {
+    inviteMessage.textContent = "This invite is no longer pending.";
+    return;
+  }
+
+  const shouldRevoke = window.confirm(`Revoke the invite for ${invite.invitedEmail}?`);
+
+  if (!shouldRevoke) {
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("group_invites")
+    .update({ status: "revoked" })
+    .eq("id", invite.id)
+    .eq("group_id", group.id)
+    .eq("status", "pending");
+
+  if (error) {
+    throw error;
+  }
+
+  inviteMessage.classList.add("success-message");
+  inviteMessage.textContent = "Invite revoked.";
   await loadRemoteAppData();
   renderGroupDetail();
   renderPendingInvites();

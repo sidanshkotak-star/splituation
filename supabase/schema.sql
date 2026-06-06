@@ -471,18 +471,12 @@ with check (
 );
 
 drop policy if exists "group_invites_update_group_member_or_invitee" on public.group_invites;
-create policy "group_invites_update_group_member_or_invitee"
+create policy "group_invites_update_group_member"
 on public.group_invites
 for update
 to authenticated
-using (
-  public.is_group_member(group_id, auth.uid())
-  or lower(invited_email) = lower(auth.jwt() ->> 'email')
-)
-with check (
-  public.is_group_member(group_id, auth.uid())
-  or lower(invited_email) = lower(auth.jwt() ->> 'email')
-);
+using (public.is_group_member(group_id, auth.uid()))
+with check (public.is_group_member(group_id, auth.uid()));
 
 drop policy if exists "group_settlements_select_group_member" on public.group_settlements;
 create policy "group_settlements_select_group_member"
