@@ -757,6 +757,100 @@ button {
   background: var(--accent);
 }
 
+.pie-wrap {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.pie-wrap.hidden {
+  display: none;
+}
+
+.pie-chart {
+  position: relative;
+  width: min(210px, 70vw);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(32, 35, 31, 0.08);
+}
+
+.pie-chart::after {
+  position: absolute;
+  inset: 28%;
+  border-radius: 50%;
+  background: var(--panel);
+  content: "";
+}
+
+.legend-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend-list li {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.legend-list strong {
+  font-size: 0.92rem;
+}
+
+.legend-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.stacked-chart-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stacked-chart-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.stacked-bar {
+  display: flex;
+  width: 100%;
+  height: 18px;
+  border-radius: 999px;
+  background: #ecece5;
+  overflow: hidden;
+}
+
+.stacked-segment {
+  min-width: 2px;
+  height: 100%;
+}
+
 .insight-list {
   display: grid;
   gap: 10px;

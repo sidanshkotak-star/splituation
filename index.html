@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>Splituation</title>
-    <link rel="stylesheet" href="./styles.css?v=20260606-csv-export" />
+    <link rel="stylesheet" href="./styles.css?v=20260606-report-charts" />
   </head>
   <body>
     <main class="app-shell">
@@ -41,7 +41,7 @@
             <p id="auth-message" class="form-message" role="status"></p>
             <p id="auth-help" class="auth-help">Use the email and password you created for Splituation.</p>
             <button id="forgot-password-button" class="link-button" type="button">Forgot password?</button>
-            <p class="build-version">Build 20260606.6</p>
+            <p class="build-version">Build 20260606.7</p>
             <button id="auth-submit-button" type="submit">Log in</button>
           </form>
 
@@ -63,7 +63,7 @@
 
             <p id="reset-message" class="form-message" role="status"></p>
             <p id="reset-help" class="auth-help">Enter your email and we will send a password reset link.</p>
-            <p class="build-version">Build 20260606.6</p>
+            <p class="build-version">Build 20260606.7</p>
             <button id="reset-submit-button" type="submit">Send reset link</button>
           </form>
         </div>
@@ -241,6 +241,31 @@
             <p>Add expenses to see your month-over-month change.</p>
           </div>
           <ul id="report-month-chart" class="chart-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="report-current-month-category-title">
+          <div class="section-heading">
+            <h2 id="report-current-month-category-title">Current Month Categories</h2>
+          </div>
+          <div id="empty-report-pie" class="empty-state">
+            <strong>No current month data</strong>
+            <p>Add expenses this month to see the category mix.</p>
+          </div>
+          <div id="report-pie-wrap" class="pie-wrap hidden">
+            <div id="report-current-month-pie" class="pie-chart" aria-label="Current month category pie chart"></div>
+            <ul id="report-pie-legend" class="legend-list"></ul>
+          </div>
+        </section>
+
+        <section class="content-section" aria-labelledby="report-category-trend-title">
+          <div class="section-heading">
+            <h2 id="report-category-trend-title">Category Spending Over Time</h2>
+          </div>
+          <div id="empty-report-category-trend" class="empty-state">
+            <strong>No category trend yet</strong>
+            <p>Add expenses across months to see category spending over time.</p>
+          </div>
+          <ul id="report-category-trend-chart" class="stacked-chart-list"></ul>
         </section>
 
         <section class="content-section" aria-labelledby="report-category-title">
@@ -422,6 +447,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./script.js?v=20260606-csv-export"></script>
+    <script src="./script.js?v=20260606-report-charts"></script>
   </body>
 </html>

@@ -101,11 +101,17 @@ const reportGroupChart = document.querySelector("#report-group-chart");
 const reportTrendList = document.querySelector("#report-trend-list");
 const reportInsightsList = document.querySelector("#report-insights-list");
 const reportMonthChart = document.querySelector("#report-month-chart");
+const reportCurrentMonthPie = document.querySelector("#report-current-month-pie");
+const reportPieWrap = document.querySelector("#report-pie-wrap");
+const reportPieLegend = document.querySelector("#report-pie-legend");
+const reportCategoryTrendChart = document.querySelector("#report-category-trend-chart");
 const emptyReportCategory = document.querySelector("#empty-report-category");
 const emptyReportGroup = document.querySelector("#empty-report-group");
 const emptyReportTrend = document.querySelector("#empty-report-trend");
 const emptyReportInsights = document.querySelector("#empty-report-insights");
 const emptyReportMonth = document.querySelector("#empty-report-month");
+const emptyReportPie = document.querySelector("#empty-report-pie");
+const emptyReportCategoryTrend = document.querySelector("#empty-report-category-trend");
 const exportCsvButton = document.querySelector("#export-csv-button");
 const exportCsvMessage = document.querySelector("#export-csv-message");
 
@@ -118,6 +124,17 @@ let reportFilters = {
   period: "90",
 };
 let data = loadData();
+
+const categoryColors = {
+  Food: "#24745b",
+  Groceries: "#f29d52",
+  Transport: "#3f6f9f",
+  Housing: "#8d5a97",
+  Entertainment: "#c4513f",
+  Travel: "#2c8f8b",
+  Shopping: "#d3a62f",
+  Other: "#6d736b",
+};
 
 function loadData() {
   const storedData = localStorage.getItem(storageKey);
@@ -806,6 +823,10 @@ function aggregateByKey(expenses, keyGetter) {
     .sort((first, second) => second.amount - first.amount);
 }
 
+function getCategoryColor(category) {
+  return categoryColors[category] || categoryColors.Other;
+}
+
 function renderBarList(targetList, dataPoints, maxAmount) {
   targetList.innerHTML = "";
 
@@ -830,6 +851,111 @@ function renderBarList(targetList, dataPoints, maxAmount) {
     track.append(fill);
     item.append(row, track);
     targetList.appendChild(item);
+  });
+}
+
+function renderPieChart(categoryTotals) {
+  const total = categoryTotals.reduce((sum, item) => sum + item.amount, 0);
+
+  reportPieLegend.innerHTML = "";
+  reportPieWrap.classList.toggle("hidden", total === 0);
+  emptyReportPie.classList.toggle("hidden", total > 0);
+
+  if (total === 0) {
+    reportCurrentMonthPie.style.background = "";
+    return;
+  }
+
+  let currentPercent = 0;
+  const gradientStops = categoryTotals.map((item) => {
+    const percent = (item.amount / total) * 100;
+    const start = currentPercent;
+    const end = currentPercent + percent;
+
+    currentPercent = end;
+    return `${getCategoryColor(item.label)} ${start}% ${end}%`;
+  });
+
+  reportCurrentMonthPie.style.background = `conic-gradient(${gradientStops.join(", ")})`;
+
+  categoryTotals.forEach((item) => {
+    const percent = ((item.amount / total) * 100).toFixed(0);
+    const legendItem = document.createElement("li");
+    const swatch = document.createElement("span");
+    const label = document.createElement("strong");
+    const value = document.createElement("p");
+
+    swatch.className = "legend-swatch";
+    swatch.style.background = getCategoryColor(item.label);
+    label.textContent = item.label;
+    value.textContent = `${formatCurrency(item.amount)} | ${percent}%`;
+    legendItem.append(swatch, label, value);
+    reportPieLegend.appendChild(legendItem);
+  });
+}
+
+function getMonthlyCategoryRows(expenses) {
+  const totalsByMonth = new Map();
+
+  expenses.forEach((expense) => {
+    const monthKey = expense.expenseDate.slice(0, 7);
+
+    if (!totalsByMonth.has(monthKey)) {
+      totalsByMonth.set(monthKey, {
+        monthKey,
+        total: 0,
+        categories: new Map(),
+      });
+    }
+
+    const row = totalsByMonth.get(monthKey);
+    row.total += expense.amount;
+    row.categories.set(expense.category, (row.categories.get(expense.category) || 0) + expense.amount);
+  });
+
+  return Array.from(totalsByMonth.values())
+    .sort((first, second) => second.monthKey.localeCompare(first.monthKey))
+    .slice(0, 6)
+    .reverse();
+}
+
+function renderCategoryTrendChart(expenses) {
+  const rows = getMonthlyCategoryRows(expenses);
+  const maxTotal = Math.max(...rows.map((row) => row.total), 0);
+
+  reportCategoryTrendChart.innerHTML = "";
+  emptyReportCategoryTrend.classList.toggle("hidden", rows.length > 0);
+
+  rows.forEach((row) => {
+    const item = document.createElement("li");
+    const labelRow = document.createElement("div");
+    const label = document.createElement("strong");
+    const value = document.createElement("span");
+    const bar = document.createElement("div");
+    const [year, month] = row.monthKey.split("-");
+
+    item.className = "stacked-chart-item";
+    labelRow.className = "chart-label-row";
+    bar.className = "stacked-bar";
+    label.textContent = `${month}/${year}`;
+    value.textContent = formatCurrency(row.total);
+
+    Array.from(row.categories.entries())
+      .sort((first, second) => second[1] - first[1])
+      .forEach(([category, amount]) => {
+        const segment = document.createElement("div");
+        const width = maxTotal > 0 ? (amount / maxTotal) * 100 : 0;
+
+        segment.className = "stacked-segment";
+        segment.style.width = `${width}%`;
+        segment.style.background = getCategoryColor(category);
+        segment.title = `${category}: ${formatCurrency(amount)}`;
+        bar.appendChild(segment);
+      });
+
+    labelRow.append(label, value);
+    item.append(labelRow, bar);
+    reportCategoryTrendChart.appendChild(item);
   });
 }
 
@@ -947,8 +1073,16 @@ function getMonthComparisonInsight(currentTotal, previousTotal) {
   };
 }
 
-function renderInsights(expenses, categoryTotals, groupTotals, currentMonthTotal, previousMonthTotal) {
+function renderInsights(expenses, categoryTotals, groupTotals, currentMonthTotal, previousMonthTotal, currentMonthCategoryTotals) {
   const insights = [getMonthComparisonInsight(currentMonthTotal, previousMonthTotal)];
+
+  if (currentMonthCategoryTotals.length > 0) {
+    const topCurrentCategory = currentMonthCategoryTotals[0];
+    insights.push({
+      title: `${topCurrentCategory.label} leads this month`,
+      detail: `${formatCurrency(topCurrentCategory.amount)} has been logged in ${topCurrentCategory.label.toLowerCase()} this month.`,
+    });
+  }
 
   if (categoryTotals.length > 0) {
     const topCategory = categoryTotals[0];
@@ -1025,6 +1159,7 @@ function renderReports() {
   const currentMonthTotal = currentMonthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const previousMonthTotal = previousMonthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const categoryTotals = aggregateByKey(expenses, (expense) => expense.category);
+  const currentMonthCategoryTotals = aggregateByKey(currentMonthExpenses, (expense) => expense.category);
   const groupTotals = aggregateByKey(expenses, (expense) => getMyGroup(expense.groupId)?.name || "Group");
   const topCategory = categoryTotals[0]?.label || "None";
   const maxCategory = categoryTotals[0]?.amount || 0;
@@ -1040,7 +1175,9 @@ function renderReports() {
   renderBarList(reportCategoryChart, categoryTotals, maxCategory);
   renderBarList(reportGroupChart, groupTotals, maxGroup);
   renderMonthComparison(currentMonthTotal, previousMonthTotal);
-  renderInsights(expenses, categoryTotals, groupTotals, currentMonthTotal, previousMonthTotal);
+  renderPieChart(currentMonthCategoryTotals);
+  renderCategoryTrendChart(expenses);
+  renderInsights(expenses, categoryTotals, groupTotals, currentMonthTotal, previousMonthTotal, currentMonthCategoryTotals);
   renderTrendList(expenses);
 }
 
