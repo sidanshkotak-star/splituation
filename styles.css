@@ -424,6 +424,39 @@ button {
   background: var(--panel);
 }
 
+.invite-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invite-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.invite-card strong,
+.invite-card span {
+  display: block;
+}
+
+.invite-card span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.invite-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
 .expense-main {
   display: flex;
   align-items: flex-start;

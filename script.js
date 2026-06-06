@@ -44,6 +44,9 @@ const emptyHome = document.querySelector("#empty-home");
 const recentExpenseCount = document.querySelector("#recent-expense-count");
 const recentExpenseList = document.querySelector("#recent-expense-list");
 const emptyRecentExpenses = document.querySelector("#empty-recent-expenses");
+const pendingInviteCount = document.querySelector("#pending-invite-count");
+const pendingInviteList = document.querySelector("#pending-invite-list");
+const emptyPendingInvites = document.querySelector("#empty-pending-invites");
 
 const groupForm = document.querySelector("#group-form");
 const groupNameInput = document.querySelector("#group-name");
@@ -61,6 +64,13 @@ const groupDetailTotal = document.querySelector("#group-detail-total");
 const groupDetailRole = document.querySelector("#group-detail-role");
 const membersCount = document.querySelector("#members-count");
 const membersList = document.querySelector("#members-list");
+const inviteForm = document.querySelector("#invite-form");
+const inviteEmailInput = document.querySelector("#invite-email");
+const inviteMessage = document.querySelector("#invite-message");
+const inviteSubmitButton = document.querySelector("#invite-submit-button");
+const groupInviteCount = document.querySelector("#group-invite-count");
+const groupInviteList = document.querySelector("#group-invite-list");
+const emptyGroupInvites = document.querySelector("#empty-group-invites");
 
 const expenseForm = document.querySelector("#expense-form");
 const expenseFormTitle = document.querySelector("#expense-form-title");
@@ -121,6 +131,7 @@ function createEmptyData() {
     groups: [],
     groupMembers: [],
     expenses: [],
+    groupInvites: [],
   };
 }
 
@@ -140,6 +151,7 @@ function normalizeData(savedData) {
     groups: Array.isArray(savedData.groups) ? savedData.groups : [],
     groupMembers: Array.isArray(savedData.groupMembers) ? savedData.groupMembers : [],
     expenses: Array.isArray(savedData.expenses) ? savedData.expenses : [],
+    groupInvites: Array.isArray(savedData.groupInvites) ? savedData.groupInvites : [],
   };
 }
 
@@ -279,6 +291,20 @@ function mapRemoteExpense(expense) {
   };
 }
 
+function mapRemoteInvite(invite) {
+  return {
+    id: invite.id,
+    groupId: invite.group_id,
+    invitedEmail: invite.invited_email || "",
+    invitedBy: invite.invited_by,
+    status: invite.status,
+    token: invite.token,
+    expiresAt: invite.expires_at,
+    createdAt: invite.created_at,
+    acceptedAt: invite.accepted_at,
+  };
+}
+
 function replaceLocalProfiles(profiles) {
   const profileMap = new Map(data.users.map((user) => [user.id, user]));
 
@@ -296,6 +322,7 @@ function getRemoteProfileIds() {
       ...data.groupMembers.map((member) => member.userId),
       ...data.expenses.map((expense) => expense.createdBy),
       ...data.expenses.map((expense) => expense.paidBy),
+      ...data.groupInvites.map((invite) => invite.invitedBy),
     ].filter(Boolean)),
   );
 }
@@ -366,10 +393,11 @@ async function loadRemoteAppData() {
     return;
   }
 
-  const [groupsResult, membersResult, expensesResult] = await Promise.all([
+  const [groupsResult, membersResult, expensesResult, invitesResult] = await Promise.all([
     supabaseClient.from("groups").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("group_members").select("*").order("created_at", { ascending: true }),
     supabaseClient.from("expenses").select("*").order("expense_date", { ascending: false }),
+    supabaseClient.from("group_invites").select("*").order("created_at", { ascending: false }),
   ]);
 
   if (groupsResult.error) {
@@ -384,9 +412,14 @@ async function loadRemoteAppData() {
     throw expensesResult.error;
   }
 
+  if (invitesResult.error) {
+    throw invitesResult.error;
+  }
+
   data.groups = groupsResult.data.map(mapRemoteGroup);
   data.groupMembers = membersResult.data.map(mapRemoteMember);
   data.expenses = expensesResult.data.map(mapRemoteExpense);
+  data.groupInvites = invitesResult.data.map(mapRemoteInvite);
 
   const profileIds = getRemoteProfileIds();
 
@@ -419,8 +452,24 @@ function getMyGroups() {
   return data.groups.filter((group) => groupIds.has(group.id));
 }
 
+function getPendingInvitesForCurrentUser() {
+  const currentUser = getCurrentUser();
+
+  if (!currentUser) {
+    return [];
+  }
+
+  return data.groupInvites.filter(
+    (invite) => invite.status === "pending" && normalizeEmail(invite.invitedEmail) === normalizeEmail(currentUser.email),
+  );
+}
+
 function getMyGroup(groupId) {
   return getMyGroups().find((group) => group.id === groupId) || null;
+}
+
+function getPendingInvitesForGroup(groupId) {
+  return data.groupInvites.filter((invite) => invite.groupId === groupId && invite.status === "pending");
 }
 
 function getGroupMembers(groupId) {
@@ -903,6 +952,7 @@ function renderApp() {
   profileEmail.textContent = currentUser.email;
   renderGroups();
   renderRecentExpenses();
+  renderPendingInvites();
   renderReports();
   showScreen("home");
 }
@@ -972,6 +1022,43 @@ function renderRecentExpenses() {
   });
 }
 
+function renderPendingInvites() {
+  const pendingInvites = getPendingInvitesForCurrentUser();
+
+  pendingInviteCount.textContent = formatCount(pendingInvites.length, "invite", "invites");
+  emptyPendingInvites.classList.toggle("hidden", pendingInvites.length > 0);
+  pendingInviteList.innerHTML = "";
+
+  pendingInvites.forEach((invite) => {
+    const inviterName = getUserName(invite.invitedBy);
+    const item = document.createElement("li");
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    const subtitle = document.createElement("span");
+    const actions = document.createElement("div");
+    const acceptButton = document.createElement("button");
+
+    item.className = "invite-card";
+    actions.className = "invite-actions";
+    title.textContent = "Group invite";
+    subtitle.textContent = `Invited by ${inviterName}`;
+    acceptButton.type = "button";
+    acceptButton.textContent = "Accept invite";
+    acceptButton.addEventListener("click", async () => {
+      try {
+        await acceptInvite(invite.id);
+      } catch (error) {
+        window.alert(error.message || "Could not accept the invite. Please try again.");
+      }
+    });
+
+    details.append(title, subtitle);
+    actions.append(acceptButton);
+    item.append(details, actions);
+    pendingInviteList.appendChild(item);
+  });
+}
+
 function openGroupDetail(groupId) {
   const group = getMyGroup(groupId);
 
@@ -1001,16 +1088,20 @@ function renderGroupDetail() {
   const isOwner = currentMembership?.role === "owner";
   const members = getGroupMembers(group.id);
   const groupExpenses = getGroupExpenses(group.id);
+  const pendingInvites = getPendingInvitesForGroup(group.id);
 
   groupDetailTitle.textContent = group.name;
   groupDetailTotal.textContent = formatCurrency(getGroupTotal(group.id));
   groupDetailRole.textContent = isOwner ? "Owner" : "Member";
   groupSettingsSection.classList.toggle("hidden", !isOwner);
   membersCount.textContent = formatCount(members.length, "member", "members");
+  groupInviteCount.textContent = `${pendingInvites.length} pending`;
   groupExpenseCount.textContent = formatCount(groupExpenses.length, "expense", "expenses");
   emptyGroupExpenses.classList.toggle("hidden", groupExpenses.length > 0);
+  emptyGroupInvites.classList.toggle("hidden", pendingInvites.length > 0);
 
   membersList.innerHTML = "";
+  groupInviteList.innerHTML = "";
   groupExpenseList.innerHTML = "";
 
   members.forEach((member) => {
@@ -1029,9 +1120,29 @@ function renderGroupDetail() {
     membersList.appendChild(item);
   });
 
+  pendingInvites.forEach((invite) => {
+    groupInviteList.appendChild(createGroupInviteListItem(invite));
+  });
+
   groupExpenses.forEach((expense) => {
     groupExpenseList.appendChild(createExpenseListItem(expense));
   });
+}
+
+function createGroupInviteListItem(invite) {
+  const item = document.createElement("li");
+  const details = document.createElement("div");
+  const email = document.createElement("strong");
+  const subtitle = document.createElement("span");
+
+  item.className = "invite-card";
+  email.textContent = invite.invitedEmail;
+  subtitle.textContent = `Pending since ${formatDate(invite.createdAt?.slice(0, 10))}`;
+
+  details.append(email, subtitle);
+  item.append(details);
+
+  return item;
 }
 
 function createExpenseListItem(expense) {
@@ -1181,6 +1292,7 @@ async function handleExpenseSubmit() {
   resetExpenseForm();
   renderGroups();
   renderRecentExpenses();
+  renderPendingInvites();
   renderReports();
   renderGroupDetail();
 }
@@ -1214,6 +1326,7 @@ async function deleteExpense(expenseId) {
   await loadRemoteAppData();
   renderGroups();
   renderRecentExpenses();
+  renderPendingInvites();
   renderReports();
   renderGroupDetail();
 }
@@ -1254,6 +1367,88 @@ async function deleteSelectedGroup() {
   await loadRemoteAppData();
   renderGroups();
   renderRecentExpenses();
+  renderPendingInvites();
+  renderReports();
+  showScreen("groups");
+}
+
+async function createInvite() {
+  const group = getMyGroup(selectedGroupId);
+  const invitedEmail = normalizeEmail(inviteEmailInput.value);
+
+  if (!group) {
+    inviteMessage.textContent = "Open a group before creating an invite.";
+    return;
+  }
+
+  if (!invitedEmail) {
+    inviteMessage.textContent = "Enter an email address.";
+    return;
+  }
+
+  if (invitedEmail === normalizeEmail(getCurrentUser()?.email || "")) {
+    inviteMessage.textContent = "You are already in this group.";
+    return;
+  }
+
+  const isExistingMember = getGroupMembers(group.id).some(
+    (member) => normalizeEmail(member.user.email) === invitedEmail,
+  );
+
+  if (isExistingMember) {
+    inviteMessage.textContent = "That person is already a group member.";
+    return;
+  }
+
+  const hasPendingInvite = getPendingInvitesForGroup(group.id).some(
+    (invite) => normalizeEmail(invite.invitedEmail) === invitedEmail,
+  );
+
+  if (hasPendingInvite) {
+    inviteMessage.textContent = "That email already has a pending invite.";
+    return;
+  }
+
+  inviteSubmitButton.disabled = true;
+  inviteSubmitButton.textContent = "Creating...";
+
+  const { error } = await supabaseClient.from("group_invites").insert({
+    group_id: group.id,
+    invited_email: invitedEmail,
+    invited_by: data.currentUserId,
+    status: "pending",
+  });
+
+  inviteSubmitButton.disabled = false;
+  inviteSubmitButton.textContent = "Create invite";
+
+  if (error) {
+    inviteMessage.classList.remove("success-message");
+    inviteMessage.textContent = error.message;
+    return;
+  }
+
+  inviteForm.reset();
+  inviteMessage.classList.add("success-message");
+  inviteMessage.textContent = "Invite created. Ask them to sign up or log in with that email.";
+  await loadRemoteAppData();
+  renderGroupDetail();
+  renderPendingInvites();
+}
+
+async function acceptInvite(inviteId) {
+  const { error } = await supabaseClient.rpc("accept_group_invite", {
+    invite_id: inviteId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  await loadRemoteAppData();
+  renderGroups();
+  renderRecentExpenses();
+  renderPendingInvites();
   renderReports();
   showScreen("groups");
 }
@@ -1434,6 +1629,7 @@ async function logout() {
   saveData();
   authForm.reset();
   groupForm.reset();
+  inviteForm.reset();
   resetExpenseForm();
   authMessage.textContent = "";
   groupMessage.textContent = "";
@@ -1517,6 +1713,20 @@ resetForm.addEventListener("submit", async (event) => {
   }
 });
 
+inviteForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  inviteMessage.textContent = "";
+  inviteMessage.classList.remove("success-message");
+
+  try {
+    await createInvite();
+  } catch {
+    inviteSubmitButton.disabled = false;
+    inviteSubmitButton.textContent = "Create invite";
+    inviteMessage.textContent = "Could not create the invite. Please try again.";
+  }
+});
+
 groupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   groupMessage.textContent = "";
@@ -1562,6 +1772,7 @@ groupForm.addEventListener("submit", async (event) => {
     groupForm.reset();
     renderGroups();
     renderRecentExpenses();
+    renderPendingInvites();
     renderReports();
     openGroupDetail(group.id);
   } catch (error) {
@@ -1616,6 +1827,7 @@ backToGroupsButton.addEventListener("click", () => {
   selectedExpenseId = null;
   renderGroups();
   renderRecentExpenses();
+  renderPendingInvites();
   renderReports();
   showScreen("groups");
 });
@@ -1625,6 +1837,7 @@ document.querySelectorAll("[data-screen]").forEach((button) => {
     selectedExpenseId = null;
     renderGroups();
     renderRecentExpenses();
+    renderPendingInvites();
     renderReports();
     showScreen(button.dataset.screen);
   });

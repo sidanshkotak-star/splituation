@@ -25,6 +25,10 @@ It also turns on Row Level Security so users can only access groups, members, ex
 
 After the schema runs successfully, we will connect the app to Supabase Auth and replace the temporary browser storage with real database reads and writes.
 
+## Invite Acceptance
+
+After running `schema.sql`, also run `invites.sql` in the Supabase SQL Editor. It creates the secure function the app uses when an invited user accepts a group invite.
+
 ## Email Confirmation Redirects
 
 If confirmation emails open `localhost`, update this in Supabase:

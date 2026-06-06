@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>Splituation</title>
-    <link rel="stylesheet" href="./styles.css?v=20260531-splituation-rename" />
+    <link rel="stylesheet" href="./styles.css?v=20260606-invites" />
   </head>
   <body>
     <main class="app-shell">
@@ -41,7 +41,7 @@
             <p id="auth-message" class="form-message" role="status"></p>
             <p id="auth-help" class="auth-help">Use the email and password you created for Splituation.</p>
             <button id="forgot-password-button" class="link-button" type="button">Forgot password?</button>
-            <p class="build-version">Build 20260531.6</p>
+            <p class="build-version">Build 20260606.1</p>
             <button id="auth-submit-button" type="submit">Log in</button>
           </form>
 
@@ -63,7 +63,7 @@
 
             <p id="reset-message" class="form-message" role="status"></p>
             <p id="reset-help" class="auth-help">Enter your email and we will send a password reset link.</p>
-            <p class="build-version">Build 20260531.6</p>
+            <p class="build-version">Build 20260606.1</p>
             <button id="reset-submit-button" type="submit">Send reset link</button>
           </form>
         </div>
@@ -113,6 +113,20 @@
           </div>
 
           <ul id="recent-expense-list" class="item-list"></ul>
+        </section>
+
+        <section class="content-section" aria-labelledby="pending-invites-title">
+          <div class="section-heading">
+            <h2 id="pending-invites-title">Pending Invites</h2>
+            <span id="pending-invite-count">0 invites</span>
+          </div>
+
+          <div id="empty-pending-invites" class="empty-state">
+            <strong>No pending invites</strong>
+            <p>Group invitations sent to your email will appear here.</p>
+          </div>
+
+          <ul id="pending-invite-list" class="invite-list"></ul>
         </section>
 
         <nav class="bottom-nav" aria-label="Main navigation">
@@ -329,6 +343,29 @@
           <ul id="members-list" class="item-list"></ul>
         </section>
 
+        <section class="content-section" aria-labelledby="invite-title">
+          <div class="section-heading">
+            <h2 id="invite-title">Invite People</h2>
+            <span id="group-invite-count">0 pending</span>
+          </div>
+
+          <form id="invite-form" class="stacked-form panel">
+            <div class="field">
+              <label for="invite-email">Email</label>
+              <input id="invite-email" name="inviteEmail" type="email" autocomplete="email" placeholder="friend@example.com" required />
+            </div>
+            <p id="invite-message" class="form-message" role="status"></p>
+            <button id="invite-submit-button" type="submit">Create invite</button>
+          </form>
+
+          <div id="empty-group-invites" class="empty-state">
+            <strong>No pending invites</strong>
+            <p>Pending invitations for this group will appear here.</p>
+          </div>
+
+          <ul id="group-invite-list" class="invite-list"></ul>
+        </section>
+
         <section class="content-section" aria-labelledby="group-expenses-title">
           <div class="section-heading">
             <h2 id="group-expenses-title">Expenses</h2>
@@ -352,6 +389,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./script.js?v=20260531-splituation-rename"></script>
+    <script src="./script.js?v=20260606-invites"></script>
   </body>
 </html>
