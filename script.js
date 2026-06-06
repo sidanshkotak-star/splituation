@@ -1201,12 +1201,13 @@ function renderReports() {
 
 function escapeCsvValue(value) {
   const stringValue = String(value ?? "");
+  const safeValue = /^[=+\-@\t\r]/.test(stringValue) ? `'${stringValue}` : stringValue;
 
-  if (/[",\n\r]/.test(stringValue)) {
-    return `"${stringValue.replaceAll('"', '""')}"`;
+  if (/[",\n\r]/.test(safeValue)) {
+    return `"${safeValue.replaceAll('"', '""')}"`;
   }
 
-  return stringValue;
+  return safeValue;
 }
 
 function getExpensePayerBreakdown(expense) {
