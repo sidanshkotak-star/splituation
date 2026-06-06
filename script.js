@@ -190,6 +190,11 @@ function saveData() {
   localStorage.setItem(storageKey, JSON.stringify(data));
 }
 
+function clearCachedAppData() {
+  data = createEmptyData();
+  localStorage.removeItem(storageKey);
+}
+
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
 }
@@ -2488,10 +2493,9 @@ async function logout() {
   }
 
   showSessionMessage("");
-  data.currentUserId = null;
   selectedGroupId = null;
   selectedExpenseId = null;
-  saveData();
+  clearCachedAppData();
   authForm.reset();
   groupForm.reset();
   inviteForm.reset();
@@ -2522,8 +2526,7 @@ async function initializeApp() {
       await migrateLocalDataToSupabase();
       await loadRemoteAppData();
     } else {
-      data.currentUserId = null;
-      saveData();
+      clearCachedAppData();
     }
   } catch (error) {
     authMessage.textContent = error.message || "Could not load your Supabase data.";
