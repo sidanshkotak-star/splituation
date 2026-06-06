@@ -1750,6 +1750,21 @@ function handlePayerPercentInput(changedInput) {
   updatePayerTotalLabel();
 }
 
+function getDefaultPayerPercent(member, members, index) {
+  if (members.length === 1) {
+    return 100;
+  }
+
+  if (members.length === 2) {
+    return 50;
+  }
+
+  const basePercent = Math.floor(100 / members.length);
+  const remainder = 100 % members.length;
+
+  return basePercent + (index < remainder ? 1 : 0);
+}
+
 function renderPayerSplitInputs(expense = null) {
   const members = getGroupMembers(selectedGroupId);
   const existingPayers = new Map();
@@ -1762,7 +1777,7 @@ function renderPayerSplitInputs(expense = null) {
 
   payerSplitList.innerHTML = "";
 
-  members.forEach((member) => {
+  members.forEach((member, index) => {
     const row = document.createElement("div");
     const name = document.createElement("span");
     const inputWrap = document.createElement("div");
@@ -1770,9 +1785,7 @@ function renderPayerSplitInputs(expense = null) {
     const percentLabel = document.createElement("span");
     const defaultPercent = expense
       ? existingPayers.get(member.userId) || 0
-      : member.userId === data.currentUserId
-        ? 100
-        : 0;
+      : getDefaultPayerPercent(member, members, index);
 
     row.className = "payer-split-row";
     inputWrap.className = "payer-percent-input";
