@@ -820,6 +820,10 @@ button {
   text-align: right;
 }
 
+.chart-legend {
+  margin-top: 10px;
+}
+
 .stacked-chart-list {
   display: grid;
   gap: 10px;

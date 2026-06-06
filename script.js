@@ -105,6 +105,7 @@ const reportCurrentMonthPie = document.querySelector("#report-current-month-pie"
 const reportPieWrap = document.querySelector("#report-pie-wrap");
 const reportPieLegend = document.querySelector("#report-pie-legend");
 const reportCategoryTrendChart = document.querySelector("#report-category-trend-chart");
+const reportCategoryTrendLegend = document.querySelector("#report-category-trend-legend");
 const emptyReportCategory = document.querySelector("#empty-report-category");
 const emptyReportGroup = document.querySelector("#empty-report-group");
 const emptyReportTrend = document.querySelector("#empty-report-trend");
@@ -922,9 +923,12 @@ function getMonthlyCategoryRows(expenses) {
 function renderCategoryTrendChart(expenses) {
   const rows = getMonthlyCategoryRows(expenses);
   const maxTotal = Math.max(...rows.map((row) => row.total), 0);
+  const categoryTotals = aggregateByKey(expenses, (expense) => expense.category);
 
   reportCategoryTrendChart.innerHTML = "";
+  reportCategoryTrendLegend.innerHTML = "";
   emptyReportCategoryTrend.classList.toggle("hidden", rows.length > 0);
+  reportCategoryTrendLegend.classList.toggle("hidden", rows.length === 0);
 
   rows.forEach((row) => {
     const item = document.createElement("li");
@@ -956,6 +960,20 @@ function renderCategoryTrendChart(expenses) {
     labelRow.append(label, value);
     item.append(labelRow, bar);
     reportCategoryTrendChart.appendChild(item);
+  });
+
+  categoryTotals.forEach((category) => {
+    const legendItem = document.createElement("li");
+    const swatch = document.createElement("span");
+    const label = document.createElement("strong");
+    const value = document.createElement("p");
+
+    swatch.className = "legend-swatch";
+    swatch.style.background = getCategoryColor(category.label);
+    label.textContent = category.label;
+    value.textContent = formatCurrency(category.amount);
+    legendItem.append(swatch, label, value);
+    reportCategoryTrendLegend.appendChild(legendItem);
   });
 }
 
