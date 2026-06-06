@@ -1472,12 +1472,12 @@ function updatePayerTotalLabel() {
 function formatPayerPercent(value) {
   const safeValue = Math.max(0, Math.min(100, Number(value) || 0));
 
-  return Number(safeValue.toFixed(2)).toString();
+  return Math.round(safeValue).toString();
 }
 
 function handlePayerPercentInput(changedInput) {
   const inputs = Array.from(payerSplitList.querySelectorAll("input"));
-  let changedValue = Math.max(0, Math.min(100, Number(changedInput.value) || 0));
+  let changedValue = Math.round(Math.max(0, Math.min(100, Number(changedInput.value) || 0)));
 
   if (inputs.length === 2) {
     const otherInput = inputs.find((input) => input !== changedInput);
@@ -1536,7 +1536,7 @@ function renderPayerSplitInputs(expense = null) {
     input.type = "number";
     input.min = "0";
     input.max = "100";
-    input.step = "0.01";
+    input.step = "1";
     input.inputMode = "decimal";
     input.value = defaultPercent;
     input.dataset.userId = member.userId;
