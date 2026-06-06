@@ -1,4 +1,5 @@
--- Run this once in Supabase SQL Editor to enable safe invite acceptance.
+-- Run this in Supabase SQL Editor to enable invite acceptance
+-- and let invitees see who invited them.
 
 create or replace function public.accept_group_invite(invite_id uuid)
 returns uuid
@@ -43,3 +44,22 @@ end;
 $$;
 
 grant execute on function public.accept_group_invite(uuid) to authenticated;
+
+drop policy if exists "profiles_select_visible" on public.profiles;
+create policy "profiles_select_visible"
+on public.profiles
+for select
+to authenticated
+using (
+  id = auth.uid()
+  or public.shares_group(auth.uid(), id)
+  or exists (
+    select 1
+    from public.group_invites
+    where invited_by = profiles.id
+      and status = 'pending'
+      and lower(invited_email) = lower(auth.jwt() ->> 'email')
+  )
+);
+
+notify pgrst, 'reload schema';

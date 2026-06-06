@@ -219,6 +219,13 @@ to authenticated
 using (
   id = auth.uid()
   or public.shares_group(auth.uid(), id)
+  or exists (
+    select 1
+    from public.group_invites
+    where invited_by = profiles.id
+      and status = 'pending'
+      and lower(invited_email) = lower(auth.jwt() ->> 'email')
+  )
 );
 
 drop policy if exists "profiles_insert_own" on public.profiles;
