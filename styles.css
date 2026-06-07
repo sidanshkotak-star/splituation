@@ -164,8 +164,12 @@ h3 {
 
 .field-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
+}
+
+.field-row > .field {
+  min-width: 0;
 }
 
 .form-title-row {
@@ -188,12 +192,20 @@ label {
 input,
 select {
   width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfbf8;
   color: var(--text);
+}
+
+#expense-date {
+  padding-right: 10px;
+  padding-left: 10px;
+  font-size: 0.95rem;
+  text-align: center;
 }
 
 select {
