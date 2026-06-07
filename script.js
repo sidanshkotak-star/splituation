@@ -2207,6 +2207,29 @@ async function recordSettlement(payment) {
   settlementMessage.textContent = "Payment recorded. The expenses stayed in your history.";
 }
 
+function getInviteText() {
+  return "I invited you to Splituation. Sign up with this email at splituation.com";
+}
+
+async function promptToTextInvite() {
+  const text = getInviteText();
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch {
+      // If the share sheet is cancelled or unavailable, fall back to the SMS prompt.
+    }
+  }
+
+  const shouldOpenText = window.confirm(`Invite created. Text them this:\n\n${text}\n\nOpen Messages now?`);
+
+  if (shouldOpenText) {
+    window.location.href = `sms:&body=${encodeURIComponent(text)}`;
+  }
+}
+
 async function createInvite() {
   const group = getMyGroup(selectedGroupId);
   const invitedEmail = normalizeEmail(inviteEmailInput.value);
@@ -2265,10 +2288,11 @@ async function createInvite() {
 
   inviteForm.reset();
   inviteMessage.classList.add("success-message");
-  inviteMessage.textContent = "Invite created. Ask them to sign up or log in with that email.";
+  inviteMessage.textContent = "Invite created. Text them the signup message so they know to join.";
   await loadRemoteAppData();
   renderGroupDetail();
   renderPendingInvites();
+  await promptToTextInvite();
 }
 
 async function revokeInvite(inviteId) {
