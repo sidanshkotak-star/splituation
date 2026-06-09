@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>Splituation</title>
-    <link rel="stylesheet" href="./styles.css?v=20260607-expense-date" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-monthly-group-total" />
   </head>
   <body>
     <main class="app-shell">
@@ -41,7 +41,7 @@
             <p id="auth-message" class="form-message" role="status"></p>
             <p id="auth-help" class="auth-help">Use the email and password you created for Splituation.</p>
             <button id="forgot-password-button" class="link-button" type="button">Forgot password?</button>
-            <p class="build-version">Build 20260607.3</p>
+            <p class="build-version">Build 20260608.1</p>
             <button id="auth-submit-button" type="submit">Log in</button>
           </form>
 
@@ -63,7 +63,7 @@
 
             <p id="reset-message" class="form-message" role="status"></p>
             <p id="reset-help" class="auth-help">Enter your email and we will send a password reset link.</p>
-            <p class="build-version">Build 20260607.3</p>
+            <p class="build-version">Build 20260608.1</p>
             <button id="reset-submit-button" type="submit">Send reset link</button>
           </form>
         </div>
@@ -318,6 +318,10 @@
         <section class="summary-panel" aria-label="Group detail">
           <p class="panel-label">Group</p>
           <h1 id="group-detail-title" class="detail-title">Group name</h1>
+          <div class="summary-month-field">
+            <label for="group-month-filter">Spending month</label>
+            <select id="group-month-filter" name="groupMonthFilter"></select>
+          </div>
           <p id="group-detail-total" class="group-total">$0.00</p>
           <p id="group-detail-role" class="muted">Owner</p>
           <button id="scroll-to-expense-button" class="summary-action" type="button">Add expense</button>
@@ -448,6 +452,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./script.js?v=20260607-text-invites"></script>
+    <script src="./script.js?v=20260608-monthly-group-total"></script>
   </body>
 </html>

@@ -60,6 +60,7 @@ const deleteGroupButton = document.querySelector("#delete-group-button");
 const groupSettingsSection = document.querySelector("#group-settings-section");
 const scrollToExpenseButton = document.querySelector("#scroll-to-expense-button");
 const groupDetailTitle = document.querySelector("#group-detail-title");
+const groupMonthFilter = document.querySelector("#group-month-filter");
 const groupDetailTotal = document.querySelector("#group-detail-total");
 const groupDetailRole = document.querySelector("#group-detail-role");
 const membersCount = document.querySelector("#members-count");
@@ -120,6 +121,7 @@ let authMode = "login";
 let resetMode = "request";
 let selectedGroupId = null;
 let selectedExpenseId = null;
+let selectedGroupMonth = getCurrentMonthValue();
 let reportFilters = {
   groupId: "all",
   period: "90",
@@ -201,6 +203,20 @@ function normalizeEmail(email) {
 
 function getTodayValue() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function getCurrentMonthValue() {
+  return getTodayValue().slice(0, 7);
+}
+
+function formatMonthValue(monthValue) {
+  const [year, month] = monthValue.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function formatCurrency(amount) {
@@ -653,6 +669,24 @@ function getMyExpenses() {
 
 function getGroupTotal(groupId) {
   return getGroupExpenses(groupId).reduce((total, expense) => total + expense.amount, 0);
+}
+
+function getGroupMonthOptions(groupId) {
+  const monthValues = new Set([getCurrentMonthValue()]);
+
+  getGroupExpenses(groupId).forEach((expense) => {
+    if (expense.expenseDate) {
+      monthValues.add(expense.expenseDate.slice(0, 7));
+    }
+  });
+
+  return Array.from(monthValues).sort((first, second) => second.localeCompare(first));
+}
+
+function getGroupTotalForMonth(groupId, monthValue) {
+  return getGroupExpenses(groupId)
+    .filter((expense) => expense.expenseDate?.startsWith(monthValue))
+    .reduce((total, expense) => total + expense.amount, 0);
 }
 
 function getSettleUpSummary(groupId) {
@@ -1546,11 +1580,32 @@ function openGroupDetail(groupId) {
   }
 
   selectedGroupId = groupId;
+  selectedGroupMonth = getCurrentMonthValue();
   resetExpenseForm();
   settlementMessage.textContent = "";
   settlementMessage.classList.remove("success-message");
   renderGroupDetail();
   showScreen("detail");
+}
+
+function renderGroupMonthFilter(groupId) {
+  const monthOptions = getGroupMonthOptions(groupId);
+
+  if (!monthOptions.includes(selectedGroupMonth)) {
+    selectedGroupMonth = monthOptions[0] || getCurrentMonthValue();
+  }
+
+  groupMonthFilter.innerHTML = "";
+
+  monthOptions.forEach((monthValue) => {
+    const option = document.createElement("option");
+
+    option.value = monthValue;
+    option.textContent = formatMonthValue(monthValue);
+    groupMonthFilter.appendChild(option);
+  });
+
+  groupMonthFilter.value = selectedGroupMonth;
 }
 
 function renderGroupDetail() {
@@ -1570,7 +1625,8 @@ function renderGroupDetail() {
   const pendingInvites = getPendingInvitesForGroup(group.id);
 
   groupDetailTitle.textContent = group.name;
-  groupDetailTotal.textContent = formatCurrency(getGroupTotal(group.id));
+  renderGroupMonthFilter(group.id);
+  groupDetailTotal.textContent = formatCurrency(getGroupTotalForMonth(group.id, selectedGroupMonth));
   groupDetailRole.textContent = isOwner ? "Owner" : "Member";
   groupSettingsSection.classList.toggle("hidden", !isOwner);
   membersCount.textContent = formatCount(members.length, "member", "members");
@@ -2716,6 +2772,10 @@ reportPeriodFilter.addEventListener("change", () => {
   reportFilters.period = reportPeriodFilter.value;
   exportCsvMessage.textContent = "";
   renderReports();
+});
+groupMonthFilter.addEventListener("change", () => {
+  selectedGroupMonth = groupMonthFilter.value;
+  renderGroupDetail();
 });
 exportCsvButton.addEventListener("click", exportFilteredExpensesToCsv);
 backToGroupsButton.addEventListener("click", () => {

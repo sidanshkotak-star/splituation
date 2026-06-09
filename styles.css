@@ -305,6 +305,32 @@ button {
   color: var(--warm);
 }
 
+.summary-month-field {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 12px;
+}
+
+.summary-month-field label {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.summary-month-field select {
+  min-height: 44px;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.summary-month-field select:focus {
+  border-color: #fff;
+  outline-color: rgba(255, 255, 255, 0.2);
+}
+
+.summary-month-field option {
+  color: var(--text);
+}
+
 .profile-name {
   margin-bottom: 6px;
   font-size: 2rem;
